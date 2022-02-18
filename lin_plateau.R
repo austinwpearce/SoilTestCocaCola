@@ -70,10 +70,10 @@ lin_plateau <- function(data,
     b1 <- coef(corr_model)[[2]]
     jp <- coef(corr_model)[[3]]
     join_point <- round(jp, 0)
+    plateau <- b0 + b1 * jp
     
     # CSTV at defined % of max/plateau (use percent_of_max argument)
     ##### currently ignoring this #####
-    # plateau <- b0 + b1 * jp
     # 
     # cstv_adj <-
     #     round(((plateau * percent_of_max / 100) - b0) / b1, 0)
