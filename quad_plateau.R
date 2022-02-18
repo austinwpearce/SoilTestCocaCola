@@ -1,5 +1,18 @@
-#' This function fits a quadratic plateau model to soil test correlation XY data
-#' and either provides the results in a table format or as a plot
+# package libraries needed
+library(tidyverse) # a suite of packages for wrangling and plotting
+library(nlraa) # for self-starting functions and predicted intervals
+library(minpack.lm) # for nlsLM, a robust backup to nls
+library(nlstools) # for residuals plots
+library(modelr) # for the r-squared and rmse
+
+# For now, everything is written in terms of x and y
+# So prior to using this function, the columns for soil test value and RY, for # example, will need to be renamed to x and y
+# for example: %>% rename(x = stv, y = ry) %>%
+
+# =============================================================================
+
+#' The following function fits a quadratic plateau model to soil test
+#' correlation XY data and provides results in a table format or as a plot
 #'
 #' Last updated: 2022-02-17
 #'
@@ -22,18 +35,6 @@
 #' b1 = slope
 #' b2 = quadratic term
 #' jp = join point = critical concentration = -0.5 * b1 / b2
-
-# =============================================================================
-# package libraries needed
-library(tidyverse) # a suite of packages for wrangling and plotting
-library(nlraa) # for self-starting functions and predicted intervals
-library(minpack.lm) # for nlsLM, a robust backup to nls
-library(nlstools) # for residuals plots
-library(modelr) # for the r-squared and rmse
-
-# For now, everything is written in terms of x and y
-# So prior to using this function, the columns for soil test value and RY, for # example, will need to be renamed to x and y
-# for example: %>% rename(x = stv, y = ry) %>%
 
 # =============================================================================
 # quad_plateau function
@@ -180,6 +181,7 @@ quad_plateau <- function(data,
             ) +
             annotate(
                 "text",
+                alpha = 0.5,
                 label = paste0(
                     "y = ",
                     equation,
