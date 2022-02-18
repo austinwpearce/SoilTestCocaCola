@@ -1,20 +1,6 @@
-# package libraries needed
-library(tidyverse) # a suite of packages for wrangling and plotting
-library(nlraa) # for self-starting functions and predicted intervals
-library(minpack.lm) # for nlsLM, a robust backup to nls
-library(nlstools) # for residuals plots
-library(modelr) # for the r-squared and rmse
-
-# For now, everything is written in terms of x and y
-# So prior to using this function, the columns for soil test value and RY, for
-# example, will need to be renamed to x and y
-# for example: %>% rename/mutate(x = stv, y = ry) %>%
-
-# =============================================================================
-
 #' The following function fits a linear plateau model to soil test
 #' correlation XY data and provides results in a table format or as a plot
-#'
+#' Author: Austin Pearce
 #' Last updated: 2022-02-18
 #'
 #' This function is essentially a wrapper that uses other packages' functions
@@ -28,7 +14,19 @@ library(modelr) # for the r-squared and rmse
 #' no effect if plot = FALSE
 #' @export
 
+# package libraries needed
+library(tidyverse) # a suite of packages for wrangling and plotting
+library(nlraa) # for self-starting functions and predicted intervals
+library(minpack.lm) # for nlsLM, a robust backup to nls
+library(nlstools) # for residuals plots
+library(modelr) # for the r-squared and rmse
 
+# For now, everything is written in terms of x and y
+# So prior to using this function, the columns for soil test value and RY, for
+# example, will need to be renamed to x and y
+# for example: %>% rename/mutate(x = stv, y = ry) %>%
+
+# =============================================================================
 # Linear plateau model
 # y = b0 + b1x
 # b0 = intercept

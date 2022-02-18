@@ -1,26 +1,28 @@
-# Soil-test correlation using Arcsine-Log Calibration Curve (ALCC)
-# Author: Austin Pearce
+#' Soil-test correlation using Arcsine-Log Calibration Curve (ALCC)
+#' Author: Austin Pearce
+#' Last update: 2022-02-18
 # ================================================================
 
-##### All packages needed #####
-library(tidyverse) # For data import, wrangling, and plotting
+# package libraries needed (won't just work in base R)
+library(agridat) # for obtaining a testing dataset
+library(tidyverse) # a suite of packages for wrangling and plotting
+library(nlraa) # for self-starting functions and predicted intervals
+library(minpack.lm) # for nlsLM, a robust backup to nls
+library(nlstools) # for residuals plots
+library(modelr) # for the r-squared and rmse
 
-##### Visualization settings #####
-red <- "#CE1141"
-blue <- "#13274F"
+# For now, the dataset needs `stv` (Soil Test Value) and `ry` (Relative Yield)
+# as the starting names for the X and Y variables
+# So prior to using this function, the X and Y columns that represent stv and ry
+# will need to be renamed to stv and ry
+# for example: %>% rename/mutate(stv = x, ry = y) %>%
 
-# optional plot theme setting (for me mostly)
+# =============================================================================
 theme_set(
-    theme_minimal(base_family = "serif", base_size = 14) +
+    theme_minimal(base_size = 14) +
         theme(
             plot.background = NULL,
-            plot.margin = margin(
-                t = 2,
-                r = 2,
-                b = 2,
-                l = 2,
-                unit = "pt"
-            ),
+            plot.margin = margin(t = 2, r = 10, b = 2, l = 2, unit = "pt"),
             panel.grid = element_line(color = "#F4F4F4"),
             panel.spacing = unit(2, "lines"),
             panel.border = element_blank(),
@@ -28,32 +30,16 @@ theme_set(
             axis.ticks = element_blank(),
             axis.title.y = element_text(
                 hjust = 1,
-                margin = margin(
-                    t = 0,
-                    r = 10,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
+                margin = margin(t = 0, r = 10, b = 0, l = 0, unit = "pt")),
             axis.title.x = element_text(
                 hjust = 0,
-                margin = margin(
-                    t = 10,
-                    r = 0,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.text = element_text(family = "serif"),
+                margin = margin(t = 10, r = 0, b = 0, l = 0, unit = "pt")),
+            axis.text = element_text(),
             legend.title.align = 0,
             legend.key.height = unit(x = 5, units = "mm"),
             legend.justification = c(1, 1)
             #legend.position = c(1, 1)
-        )
-)
-
+        ))
 
 ##### Two fancy functions #####
 # Function alcc_sma() creates new variables on existing dataset
@@ -136,7 +122,7 @@ alcc_plot <- function(data, sufficiency = 95) {
                    linetype = 3) +
         # twice the CSTV
         geom_vline(xintercept = cstv * 2,
-                   alpha = 0.5,
+                   alpha = 0.2,
                    linetype = 2) +
         # the predicted back-transformed regression line
         geom_line(aes(x = stv_sma,
@@ -152,10 +138,9 @@ alcc_plot <- function(data, sufficiency = 95) {
                           "\nPearson correlation = ", pearson),
             x = max(output$stv),
             y = min(output$ry),
-            family = "serif",
             hjust = 1,
             vjust = 0,
-            alpha = 1
+            alpha = 0.8
         ) +
         scale_x_continuous(breaks =
                                seq(0, 1000, if_else(
@@ -180,44 +165,25 @@ alcc_plot <- function(data, sufficiency = 95) {
 # function, keeping them separate is simpler
 
 ##### DATA IMPORT #####
-corr_data <-
-    readxl::read_xlsx(path = "data_alcc_2022_01_26.xlsx") %>%
-    rename(stv = soil_test, ry = relative_yield) %>%
-    select(dataset, stv, ry, definition, everything())
-
-corr_data %>% glimpse()
+cotton <- tibble(x = agridat::cate.potassium$potassium,
+                 y = agridat::cate.potassium$yield, 
+                 dataset = "cotton")
 
 # Relative yield can be a ratio or percentage
 # The ALCC method requires RY ratio values between 0-1,
 # and percentage values between 0-100%
 
-count(corr_data, ry > 100)
+plot(cotton$y ~ cotton$x) |> abline(h = 100)
+count(cotton, y > 100) # 3 site-years exceeded 100
+
+cotton <- cotton %>% 
+    # cap RY at 100
+    mutate(stv = x, ry = if_else(y > 100, 100, y))
+
+plot(cotton$ry ~ cotton$stv) |> abline(h = 100)
 
 # Create new dataset from correlation data
-# group_by and group_modify work together to analyze multiple datasets
-alcc_data <- corr_data %>% 
-    filter(dataset %in% c("correndo", "dyson"), trial_quality == "A") %>% 
-    group_by(dataset, level, definition, nutrient, crop, method) %>%
-    group_modify(~ alcc_sma(data = .x))
-
-alcc_data
-
-# alternatively, analyze a single dataset
-single <- corr_data %>% 
-    filter(dataset %in% c("VA-soybean-K"),
-           trial_quality == "A",
-           definition == "MAX"
-           #definition == "FITMAX-CAP",
-           #stv < 120
-           )
-
-single <- corr_data %>% 
-    filter(dataset %in% c("dyson"),
-           #trial_quality == "A"
-           #stv < 120
-    )
-
-alcc_results <- alcc_sma(single, sufficiency = 95)
+alcc_results <- alcc_sma(cotton)
 
 alcc_results
 
@@ -228,25 +194,24 @@ alcc_results %>%
     geom_vline(xintercept = 0) +
     geom_hline(yintercept = alcc_results$intercept)
 
+# Alternatively, if you have many groups/datasets in one table
+alcc_results <- cotton %>% 
+    group_by(dataset) %>%
+    group_modify(~ alcc_sma(data = .x))
+
 ##### PLOT #####
 # for a single dataset
-
-alcc_plot(single, sufficiency = 90)
+alcc_plot(alcc_results, sufficiency = 95)
 
 # alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
-single %>% 
-    group_by(dataset, level, definition, nutrient, crop, method) %>%
-    group_map(~ alcc_plot(data = .x, sufficiency = 90))
+alcc_results %>% 
+    group_by(dataset) %>%
+    group_map(~ alcc_plot(data = .x, sufficiency = 95))
 
 
 ##### CREATE simplified results table for export #####
 alcc_results %>%
     select(dataset,
-           level,
-           crop,
-           nutrient,
-           method,
-           definition,
            sufficiency,
            cstv_adj = cstv,
            lower_cl,
@@ -255,60 +220,3 @@ alcc_results %>%
            pearson) %>%
     distinct(across(everything()))
     mutate(model = "ALCC")
-
-##### Compare to Linear-plateau and Mitscherlich-Bray with bootstrap CI #####
-library(nlraa)
-library(minpack.lm) # in case nls doesn't converge
-
-single %>% 
-    ggplot(aes(stv, ry)) +
-    geom_point(size = 2, alpha = 0.5) +
-    # geom_line(stat = "smooth",
-    #           method = "nls",
-    #           formula = y ~ SSasymp(x, a, b, c),
-    #           se = FALSE,
-    #           color = red) +
-    geom_line(stat = "smooth",
-              method = "nls",
-              formula = y ~ SSlinp(x, a, b, c),
-              se = FALSE,
-              color = blue) +
-    scale_x_continuous(breaks = seq(0, 1000, 10))
-
-### Linear-plateau
-nls_lp <- nls(ry ~ SSlinp(stv, a, b, jp),
-              data = single)
-
-find_jp <- function(model) coef(model)[[3]]
-
-find_jp(nls_lp)
-
-# just going with simpler resampling of residuals though not ideal
-boot_lp <- boot_nls(object = nls_lp, f = find_jp, data = single)
-
-boot::boot.ci(boot_lp, type = "perc")
-# Join point at 20.5 with 95% CI from 
-
-
-### Mitscherlich-Bray
-mb <- function(x, asym, b, c) {
-    asym - b * exp(c * x)
-}
-
-nls_mitsch <- nls(ry ~ mb(stv, asym, b, c), 
-                  data = single,
-                  start = c(asym = 95, b = 50, c = -0.1))
-
-find_cstv <- function(model){
-    asym <- coef(model)[[1]]
-    b <- coef(model)[[2]]
-    c <- coef(model)[[3]]
-    cstv <- log((asym - (asym * 95 / 100)) / b) / c
-    return(cstv)
-}
-
-find_cstv(nls_mitsch)
-
-boot_mitsch <- boot_nls(object = nls_mitsch, f = find_cstv, R = 1000, data = single)
-
-boot::boot.ci(boot_mitsch, type = "perc")
