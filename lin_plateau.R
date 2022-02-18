@@ -1,5 +1,26 @@
-# Last updated 2021-11-03
+#' This function fits a linear plateau model to soil test correlation XY data
+#' and either provides the results in a table format or as a plot
+#' 
+#' Last updated: 2022-02-17
+#' 
+#' This function is essentially a wrapper that uses other packages' functions
+#' Won't just work in base R 
+#' @name lin_plateau
+#' @param model a linear (quadratic) or nonlinear model
+#' @param ratio the ratio of fertilizer to grain price
+#' @param x.name name of the covariate if the 
+#' default method fails (optional)
+#' @param max.rate The maximum rate to consider as a possible EONR.
+#' Useful when the model compute an Agronomic Optimum Nitrogen Rate.
+#' @param data data.frame in case the function is used inside another
+#' function
+#' @param newdata optional newdata object with the levels of specific
+#' factors. Useful for computing the prediction for specific treatment/level
+#' combinations
+#' @param level prediction level (required for models of class lme or nlme)
+#' @export
 
+# Required packages
 library(tidyverse)
 library(broom)
 library(modelr)
