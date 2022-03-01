@@ -4,18 +4,13 @@
 # ================================================================
 
 # package libraries needed (won't just work in base R)
+require(tidyverse) # a suite of packages for wrangling and plotting
+# these packages are for completing code examples after the alcc stuff
 library(agridat) # for obtaining a testing dataset
-library(tidyverse) # a suite of packages for wrangling and plotting
 library(nlraa) # for self-starting functions and predicted intervals
 library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
 library(modelr) # for the r-squared and rmse
-
-# For now, the dataset needs `stv` (Soil Test Value) and `ry` (Relative Yield)
-# as the starting names for the X and Y variables
-# So prior to using this function, the X and Y columns that represent stv and ry
-# will need to be renamed to stv and ry
-# for example: %>% rename/mutate(stv = x, ry = y) %>%
 
 # =============================================================================
 theme_set(
@@ -41,16 +36,44 @@ theme_set(
             #legend.position = c(1, 1)
         ))
 
+#' Doesn't work without installing other packages just work in base R
+#'
+#' @name malcc
+#' @param data a data frame with XY data
+#' @param resid choose whether to create residuals plots
 ##### Two fancy functions #####
 # Function alcc_sma() creates new variables on existing dataset
-alcc_sma <- function(data, sufficiency = 95){
-    steps_1_4 <- data %>% 
+alcc <- function(data,
+                 x,
+                 y,
+                 modified = TRUE,
+                 sufficiency = 90,
+                 summary = FALSE) {
+    
+    if (nrow(data) < 8) {
+        stop("Too few distinct input values to perform ALCC-SMA.
+             Try at least 8.")
+    }
+    
+    if (missing(x)) {
+        stop("Enter name of explanatory variable (x = )")
+    }
+    
+    if (missing(y)) {
+        stop("Enter name of response variable (y = )")
+    }
+    # enquo let's the user enter their own column names for x and y variables
+    x <- enquo(x)
+    y <- enquo(y)
+    steps_1_4 <- data %>%
         mutate(
+            model = case_when(modified == TRUE ~ "MALCC",
+                              modified == FALSE ~ "ALCC"),
             # get sample size
             n = n(),
             # Step 1 Transform (remember, soil test goes to Y and RY goes to X!)
-            y = log(stv),
-            x = asin(sqrt(ry / 100)),
+            y = log(!!x),
+            x = asin(sqrt(!!y / 100)),
             # Step 2 Center
             sufficiency = sufficiency,
             x_adjust = asin(sqrt(sufficiency / 100)),
@@ -64,38 +87,63 @@ alcc_sma <- function(data, sufficiency = 95){
             mean_y  = mean(y)
         )
     
-    # Step 5
+    # Step 5 Fit linear model to transformed, centered data
     ols_center <- lm(y ~ x_center, data = steps_1_4)
     
-    steps_5_9 <- steps_1_4 %>% 
-        mutate(intercept = coef(ols_center)[[1]],
-               slope = coef(ols_center)[[2]],
-               # Step 6 Rotate the regression (SMA)
-               # slope must come first
-               slope_sma = slope / pearson,
-               intercept_sma = mean_y - slope_sma * mean_x,
-               # Step 7 Estimate Critical Soil Test Concentration
-               cstv = exp(intercept_sma),
-               # Step 8 Estimate the confidence interval
-               pred_y = intercept_sma + slope_sma * x_center,
-               mse    = sum((y - pred_y) ^ 2) / (n - 2),
-               ssx    = var(x_center) * (n - 1),
-               se     = sqrt(mse * ((1 / n) + ((
-                   mean_x ^ 2
-               ) / ssx))),
-               lower_cl = exp(intercept_sma - se * qt(1 - 0.05 / 2, df = n - 2)),
-               upper_cl = exp(intercept_sma + se * qt(1 - 0.05 / 2, df = n - 2)),
-               # Step 9 Back-transform
-               stv_sma = exp(pred_y),
-               ry_sma = 100 * (sin(x_adjust + ((pred_y - intercept_sma) / slope_sma
-               ))) ^ 2)
+    steps_5_9 <- steps_1_4 %>%
+        mutate(
+            intercept = coef(ols_center)[[1]],
+            slope = coef(ols_center)[[2]],
+            # Step 6 Rotate the regression (SMA)
+            # slope must come first
+            slope = case_when(modified == TRUE ~ slope / pearson, 
+                              modified == FALSE ~ slope),
+            intercept = case_when(modified == TRUE ~ mean_y - slope * mean_x,
+                                  modified == FALSE ~ intercept),
+            # Step 7 Estimate Critical Soil Test Concentration
+            cstv = exp(intercept),
+            # Step 8 Estimate the confidence interval
+            pred_y = intercept + slope * x_center,
+            mse    = sum((y - pred_y) ^ 2) / (n - 2),
+            ssx    = var(x_center) * (n - 1),
+            se     = sqrt(mse * ((1 / n) + ((mean_x ^ 2) / ssx))),
+            lower_cl = exp(intercept - se * qt(1 - 0.05 / 2, df = n - 2)),
+            upper_cl = exp(intercept + se * qt(1 - 0.05 / 2, df = n - 2)),
+            # Step 9 Back-transform
+            stv_sma = exp(pred_y),
+            ry_sma = 100 * (sin(
+                x_adjust + ((pred_y - intercept) / slope))) ^ 2
+        ) %>% 
+        select(model, dataset, sufficiency, cstv, lower_cl, upper_cl,
+               pvalue, pearson, everything())
     
-    return(steps_5_9)
+    if(summary == TRUE) {
+        return(
+            steps_5_9 %>%
+                select(
+                    model,
+                    dataset,
+                    sufficiency,
+                    cstv,
+                    lower_cl,
+                    upper_cl,
+                    pvalue,
+                    pearson
+                )) %>% 
+            distinct(across(everything()))
+    } else {
+        return(steps_5_9)
+    }
 }
 
 # Function alcc_plot() creates a scatter plot of soil test correlation data
-alcc_plot <- function(data, sufficiency = 95) {
-    output <- alcc_sma(data, sufficiency = sufficiency)
+alcc_plot <- function(data, x, y, modified = TRUE, sufficiency = 90) {
+    # enquo let's the user enter their own column names for x and y variables
+    x <- enquo(x)
+    y <- enquo(y)
+    output <- alcc(data, x = !!x, y = !!y,
+                   modified = modified,
+                   sufficiency = sufficiency)
     # for plot annotations
     cstv <- (unique(output$cstv))
     cstv <- if_else(cstv < 10, round(cstv, 1), round(cstv, 0))
@@ -112,7 +160,7 @@ alcc_plot <- function(data, sufficiency = 95) {
     
     # ggplot style
     output %>%
-        ggplot(aes(stv, ry)) +
+        ggplot(aes(!!x, !!y)) +
         geom_point(size = 2, alpha = 0.2) +
         geom_vline(xintercept = lower_cl,
                    alpha = 0.5,
@@ -127,32 +175,31 @@ alcc_plot <- function(data, sufficiency = 95) {
         # the predicted back-transformed regression line
         geom_line(aes(x = stv_sma,
                       y = ry_sma),
-                  color = red) +
+                  color = "#CC0000") +
         # the cstv at X% sufficiency
-        geom_vline(xintercept = cstv, color = blue, alpha = 1) +
+        geom_vline(xintercept = cstv, color = "#4156A1", alpha = 1) +
         geom_hline(yintercept = sufficiency, alpha = 0.2) +
         annotate(
             "text",
             label = paste0("CSTV = ", cstv, " ppm",
                           "\n95% CI [", lower_cl, " - ", upper_cl, "]",
                           "\nPearson correlation = ", pearson),
-            x = max(output$stv),
-            y = min(output$ry),
-            hjust = 1,
+            x = cstv * 2,
+            y = 0,
+            hjust = 0,
             vjust = 0,
             alpha = 0.8
         ) +
-        scale_x_continuous(breaks =
-                               seq(0, 1000, if_else(
-                                   max(output$stv) >= 200, 40,
-                                   if_else(max(output$stv) >= 100, 20,
-                                           if_else(max(output$stv) >= 50, 10, 5))
-                               ))) +
+        # scale_x_continuous(breaks =
+        #                        seq(0, 1000, if_else(
+        #                            max(output$stv) >= 200, 40,
+        #                            if_else(max(output$stv) >= 100, 20,
+        #                                    if_else(max(output$stv) >= 50, 10, 5))
+        #                        ))) +
         scale_y_continuous(breaks = seq(0, 105, 10)) +
         labs(
             x = expression(Soil ~ Test ~ Value ~ (mg ~ kg ^ -1)),
             y = "Relative yield (%)",
-            title = "Critical soil test value with back-transformed correlation curve from Arcsine-Log Calibration Curve (ALCC)",
             caption = paste0(
                 "Results determined for ",
                 sufficiency,
@@ -165,25 +212,25 @@ alcc_plot <- function(data, sufficiency = 95) {
 # function, keeping them separate is simpler
 
 ##### DATA IMPORT #####
-cotton <- tibble(x = agridat::cate.potassium$potassium,
-                 y = agridat::cate.potassium$yield, 
+cotton <- tibble(stk = agridat::cate.potassium$potassium,
+                 ry = agridat::cate.potassium$yield, 
                  dataset = "cotton")
 
 # Relative yield can be a ratio or percentage
 # The ALCC method requires RY ratio values between 0-1,
 # and percentage values between 0-100%
 
-plot(cotton$y ~ cotton$x) |> abline(h = 100)
-count(cotton, y > 100) # 3 site-years exceeded 100
+plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
+count(cotton, stk > 100) # 3 site-years exceeded 100
 
 cotton <- cotton %>% 
     # cap RY at 100
-    mutate(stv = x, ry = if_else(y > 100, 100, y))
+    mutate(ry = if_else(ry > 100, 100, ry))
 
-plot(cotton$ry ~ cotton$stv) |> abline(h = 100)
+plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
 
 # Create new dataset from correlation data
-alcc_results <- alcc_sma(cotton)
+alcc_results <- alcc(cotton, x = stk, y = ry)
 
 alcc_results
 
@@ -210,13 +257,3 @@ alcc_results %>%
 
 
 ##### CREATE simplified results table for export #####
-alcc_results %>%
-    select(dataset,
-           sufficiency,
-           cstv_adj = cstv,
-           lower_cl,
-           upper_cl,
-           pvalue,
-           pearson) %>%
-    distinct(across(everything()))
-    mutate(model = "ALCC")
