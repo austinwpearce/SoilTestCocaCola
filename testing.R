@@ -10,34 +10,29 @@ theme_set(theme_classic())
 # linear plateau function
 source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/lin_plateau.R")
 
+# quadratic plateau function
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/quad_plateau.R")
+
+
+# =============================================================================
+# small n
+crop <- tibble(x = c(1, 2, 3, 4, 5),
+               y = c(1, 2, 4, 4, 3))
+
+lin_plateau(crop, plot = TRUE)
+quad_plateau(crop, plot = TRUE)
+mitscherlich(crop, plot = TRUE)
+
+nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))
+nls(y ~ SSasymp(x, a, b, c), data = crop)
+
 # relative cotton yield vs soil test potassium
-agridat::cate.potassium
-plot(agridat::cate.potassium$yield ~ agridat::cate.potassium$potassium)
-#
-agridat::engelstad.nitro # QP
-plot(agridat::engelstad.nitro$yield ~ agridat::engelstad.nitro$nitro)
-#
-agridat::gartner.corn
+head(agridat::cate.potassium)
+crop <- agridat::cate.potassium %>% 
+    rename(x = potassium,
+           y = yield)
 
-agridat::gartner.corn %>% 
-    ggplot(aes(long, lat, color = mass)) +
-    geom_point(size = 7, alpha = 0.3) +
-    scale_color_viridis_c(option = "mako")
-#
-agridat::lasrosas.corn
+lin_plateau(crop, plot = TRUE)
+quad_plateau(crop, plot = TRUE)
+AgroReg::linear.plateau(trat = crop$x, resp = crop$y)
 
-agridat::lasrosas.corn %>%
-    ggplot(aes(long, lat, color = yield)) +
-    geom_point(size = 3, alpha = 0.5) +
-    facet_wrap(vars(year)) +
-    scale_color_viridis_c(option = "mako")
-#
-agridat::sinclair.clover
-agridat::sinclair.clover %>% 
-    ggplot(aes(P, yield, color = yield)) +
-    geom_point(size = 2, alpha = 1) +
-    scale_color_viridis_c(option = "mako")
-
-
-cotton <- tibble(stk = agridat::cate.potassium$potassium,
-                 ry = agridat::cate.potassium$yield)

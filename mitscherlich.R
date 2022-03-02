@@ -43,9 +43,23 @@ fit_mb <- function(data, ...){
 # returns either table OR plot
 mitscherlich <- function(data,
                    #confidence = 95,
-                   alpha = 0.05,
+                   #alpha = 0.05,
                    percent_of_max = 95,
-                   plot = FALSE) {
+                   resid = FALSE,
+                   plot = FALSE,
+                   band = FALSE) {
+    
+    if (nrow(data) < 4) {
+        stop("Too few distinct input values to fit QP. Try at least 4.")
+    }
+    
+    if ("x" %in% colnames(data) == FALSE) {
+        stop("Rename the explanatory variable 'x'")
+    }
+    
+    if ("y" %in% colnames(data) == FALSE) {
+        stop("Rename the response variable 'y'")
+    }
     
     minx <- min(data$x)
     maxx <- max(data$x)
@@ -53,17 +67,17 @@ mitscherlich <- function(data,
     maxy <- max(data$y)
     
     # now get the main model with b2
-    corr_model <- fit_mb(data)
+    corr_model <<- try(fit_mb(data))
     
     # Find p-value and pseudo R-squared
-    aic <- round(AIC(corr_model), 0)
+    AIC <- round(AIC(corr_model), 0)
     rsquared <- round(modelr::rsquare(corr_model, data), 2)
     rmse <- round(modelr::rmse(corr_model, data), 2)
     
     # get model coefficients
-    asym <- tidy(corr_model)$estimate[1]
-    b <- tidy(corr_model)$estimate[2]
-    c <- tidy(corr_model)$estimate[3]
+    asym <- coef(corr_model)[[1]]
+    b <- coef(corr_model)[[2]]
+    c <- coef(corr_model)[[3]]
     new_asym <- asym * percent_of_max / 100
     cstv_adj <- log((asym - new_asym) / b) / c
     
@@ -81,16 +95,22 @@ mitscherlich <- function(data,
                        round(b, 2), "e^",
                        round(c, 3), "x")
     
-    # get error for each parameter
-    se_a <- round(tidy(corr_model)$std.error[1], 2)
-    se_b <- round(tidy(corr_model)$std.error[2], 2)
-    se_c <- round(tidy(corr_model)$std.error[3], 3)
+    # # get error for each parameter
+    # se_a <- round(tidy(corr_model)$std.error[1], 2)
+    # se_b <- round(tidy(corr_model)$std.error[2], 2)
+    # se_c <- round(tidy(corr_model)$std.error[3], 3)
     
     # Printouts
     if (plot == FALSE) {
+        {
+            if (resid == TRUE)
+                plot(nlstools::nlsResiduals(corr_model), which = 0)
+        }
         tibble(
-            equation,
             asymptote = round(asym, 0),
+            b,
+            c,
+            equation,
             percent_of_max,
             #new_ry = round(new_asym, 0),
             cstv_adj = round(cstv_adj, 0),
@@ -100,77 +120,87 @@ mitscherlich <- function(data,
             # cstv_90ry = if_else(cstv_90ry > 0,
             #                     cstv_90ry,
             #                     NULL), # at 90% RY
-            AIC = aic,
-            rsquared,
+            AIC,
             rmse,
-            model_error
+            rsquared
         )
     } else {
         # Residual plots and normality
-        #nls_resid <- nlstools::nlsResiduals(corr_model)
-        #plot(nls_resid, which = 0)
-        predicted <- nlraa::predict_nls(corr_model,
-                                 newdata = data,
-                                 interval = "confidence") %>%
+        {
+            if (resid == TRUE)
+                plot(nlstools::nlsResiduals(corr_model), which = 0)
+        }
+        predicted <- 
+            nlraa::predict2_nls(corr_model,
+                                newdata = data,
+                                interval = "confidence") %>%
             as_tibble() %>%
             bind_cols(data)
         
-        # ggplot of data
-        predicted %>%
-            plottr_d(x, y) +
-            # if you want to show the confidence bands
-            # geom_ribbon(aes(y = Estimate,
-            #                 ymin = Q2.5,
-            #                 ymax = Q97.5),
-            #             alpha = 0.2) +
-            ggpp::geom_vhlines(xintercept = cstv_adj,
-                               yintercept = new_asym,
-                               linetype = 3,
-                               alpha = 0.5) +
-            geom_line(
-                stat="smooth",
-                method = "nlsLM",
-                formula = y ~ mb(x, asym, b, c),
-                method.args = list(start = as.list(coef(corr_model))),
-                se = FALSE,
-                color = "#CC0000"
-            ) +
+        mit_plot <- predicted %>%
+            ggplot(aes(x, y)) +
+            {
+                if (band == TRUE)
+                    geom_ribbon(aes(
+                        y = Estimate,
+                        ymin = Q2.5,
+                        ymax = Q97.5
+                    ),
+                    alpha = 0.05)
+            } +
+            geom_vline(xintercept = cstv_adj,
+                       alpha = 0.5,
+                       linetype = 3) +
+            geom_hline(yintercept = new_asym,
+                       alpha = 0.5,
+                       linetype = 3) +
+            # geom_line(
+            #     stat="smooth",
+            #     method = "nls",
+            #     formula = y ~ mb(x, asym, b, c),
+            #     method.args = list(start = as.list(coef(corr_model))),
+            #     se = FALSE,
+            #     color = "#CC0000"
+            # ) +
             annotate(
                 "text",
                 label = paste("CSTV =", round(cstv_adj,0), "ppm"),
                 x = cstv_adj,
-                y = miny,
+                y = 0,
                 angle = 90,
-                family = rc,
                 hjust = 0,
                 vjust = 1.5,
                 alpha = 0.5
             ) +
             annotate(
                 "text",
+                alpha = 0.5,
                 label = paste0(percent_of_max, "% of asymptote = ", round(new_asym,1), "% RY"),
                 x = maxx,
-                y = new_asym,
-                alpha = 0.5,
-                family = rc,
-                hjust = 1,
-                vjust = 1.5
+                y = 0,
+                vjust = 1.5,
+                hjust = 1
             )+
             annotate(
                 "text",
-                label = paste0("y = ", equation,
-                               "\nAIC = ", aic, "  RMSE = ", rmse,
+                alpha = 0.5,
+                label = paste0("y = ",
+                               equation,
+                               "\nAIC = ", AIC,
+                               "\nRMSE = ", rmse,
                               "\nR-squared = ", rsquared
                               #"\nCSTV at 95 and 90% RY = ", cstv_95ry," & ", cstv_90ry, " ppm"
                               ),
-                x = max(data$x) * 0.7,
-                y = min(data$y) + 5,
-                hjust = 0,
-                family = rc
+                x = maxx,
+                y = 0,
+                vjust = 0,
+                hjust = 1
             ) +
-            labs(x = label_stv,
-                 y = label_ry0,
-                 caption = paste(caption_site, nrow(data)))
+            labs(x = "Soil test value (mg/kg)",
+                 y = "Relative yield (%)",
+                 caption = paste("Each point is a site. n =", nrow(data)))
+        
+        return(mit_plot)
     }
     
 }

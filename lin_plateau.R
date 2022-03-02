@@ -40,17 +40,37 @@ lin_plateau <- function(data,
                         resid = FALSE,
                         plot = FALSE,
                         band = FALSE) {
+    
+    if (nrow(data) < 4) {
+        stop("Too few distinct input values to fit LP. Try at least 4.")
+    }
+    
+    if ("x" %in% colnames(data) == FALSE) {
+        stop("Rename the explanatory variable 'x'")
+    }
+    
+    if ("y" %in% colnames(data) == FALSE) {
+        stop("Rename the response variable 'y'")
+    }
+    
     minx <- min(data$x)
     maxx <- max(data$x)
     miny <- min(data$y)
     maxy <- max(data$y)
     
     # build the model/fit =====
-    corr_model <- try(nls(y ~ SSlinp(x, b0, b1, jp), data = data))
+    nls_model <- try(nls(y ~ SSlinp(x, b0, b1, jp), data = data))
     
-    if (inherits(corr_model, "try-error")) {
+    if (inherits(nls_model, "try-error")) {
         corr_model <-
             try(minpack.lm::nlsLM(y ~ SSlinp(x, b0, b1, jp), data = data))
+    } else {
+         corr_model <- nls_model
+    }
+
+    if (inherits(corr_model, "try-error")) {
+        stop("LP model could not be fit with nls or nlsLM.
+             Try something else.")
     } else {
         corr_model <- corr_model
     }
@@ -170,10 +190,10 @@ lin_plateau <- function(data,
             ) +
             annotate(
                 "text",
+                alpha = 0.5,
                 label = paste0("Plateau = ", round(plateau, 1), "%"),
                 x = maxx,
                 y = plateau,
-                alpha = 0.5,
                 hjust = 1,
                 vjust = 1.5
             ) +

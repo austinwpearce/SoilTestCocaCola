@@ -44,18 +44,37 @@ quad_plateau <- function(data,
                          plot = FALSE,
                          band = FALSE,
                          percent_of_max = 95) {
+    
+    if (nrow(data) < 4) {
+        stop("Too few distinct input values to fit QP. Try at least 4.")
+    }
+    
+    if ("x" %in% colnames(data) == FALSE) {
+        stop("Rename the explanatory variable 'x'")
+    }
+    
+    if ("y" %in% colnames(data) == FALSE) {
+        stop("Rename the response variable 'y'")
+    }
+    
     minx <- min(data$x)
     maxx <- max(data$x)
     miny <- min(data$y)
     maxy <- max(data$y)
     
     # uses the fit_qp function defined earlier
-    corr_model <-
-        try(nls(y ~ SSquadp3xs(x, b0, b1, jp), data = data))
+    nls_model <- try(nls(y ~ SSquadp3xs(x, b0, b1, jp), data = data))
     
-    if (inherits(corr_model, "try-error")) {
+    if (inherits(nls_model, "try-error")) {
         corr_model <-
             try(minpack.lm::nlsLM(y ~ SSquadp3xs(x, b0, b1, jp), data = data))
+    } else {
+        corr_model <- nls_model
+    }
+    
+    if (inherits(corr_model, "try-error")) {
+        stop("QP model could not be fit with nls or nlsLM.
+             Try something else.")
     } else {
         corr_model <- corr_model
     }
