@@ -3,7 +3,12 @@
 # and ALCC functions.
 
 library(tidyverse)
+library(devtools)
 theme_set(theme_classic())
+
+# Load correlation functions
+# linear plateau function
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/lin_plateau.R")
 
 # relative cotton yield vs soil test potassium
 agridat::cate.potassium
