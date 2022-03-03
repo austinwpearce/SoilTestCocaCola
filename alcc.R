@@ -83,6 +83,7 @@ alcc <- function(data,
     
     steps_1_4 <- data %>%
         mutate(
+            stv = !!x,
             # RY values greater than 100 are capped at 100
             ry_cap = if_else(!!y > 100, 100, !!y),
             model = case_when(sma == TRUE ~ "MALCC",
@@ -92,7 +93,7 @@ alcc <- function(data,
             # Step 1 Transform (t for "transformed" added to x and y)
             # for ALCC, soil test goes to Y-axis and RY goes to X-axis
             xt = asin(sqrt(ry_cap / 100)),
-            yt = log(!!x),
+            yt = log(stv),
             # Step 2 Center
             sufficiency = sufficiency,
             adjust_by = asin(sqrt(sufficiency / 100)),
@@ -190,8 +191,8 @@ alcc_plot <- function(data, soil_test, ry, sma = TRUE, sufficiency = 90) {
     
     # ggplot style
     output %>%
-        ggplot(aes(!!x, !!y)) +
-        geom_point(size = 2, alpha = 0.2) +
+        ggplot(aes(stv, ry_cap)) +
+        geom_point(size = 2, alpha = 0.5) +
         geom_vline(xintercept = lower_cl,
                    alpha = 0.5,
                    linetype = 3) +

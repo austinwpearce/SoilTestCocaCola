@@ -13,6 +13,9 @@ source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/mai
 # quadratic plateau function
 source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/quad_plateau.R")
 
+# ALCC function
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc.R")
+
 
 # =============================================================================
 # small n
@@ -60,12 +63,12 @@ cotton <- cotton %>%
 plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
 
 # Create new dataset from correlation data
-alcc_results <- alcc(cotton, x = stk, y = ry)
+alcc_results <- alcc(cotton, stk, ry)
 
 alcc_results
 
 alcc_results %>% 
-    ggplot(aes(x_center, y)) +
+    ggplot(aes(xt_centered, yt)) +
     geom_point(size = 2, alpha = 0.5) +
     geom_smooth(method = "lm") +
     geom_vline(xintercept = 0) +
@@ -74,11 +77,11 @@ alcc_results %>%
 # Alternatively, if you have many groups/datasets in one table
 alcc_results <- cotton %>% 
     group_by(dataset) %>%
-    group_modify(~ alcc_sma(data = .x))
+    group_modify(~ alcc(data = .x, stk, ry))
 
 ##### PLOT #####
 # for a single dataset
-alcc_plot(alcc_results, sufficiency = 95)
+alcc_plot(cotton, stk, ry)
 
 # alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
 alcc_results %>% 
