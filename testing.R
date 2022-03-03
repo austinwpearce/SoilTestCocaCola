@@ -36,3 +36,54 @@ lin_plateau(crop, plot = TRUE)
 quad_plateau(crop, plot = TRUE)
 AgroReg::linear.plateau(trat = crop$x, resp = crop$y)
 
+# While the plotting function could possibly be combined with the previous
+# function, keeping them separate is simpler
+
+# ALCC ========================================================================
+
+##### DATA IMPORT #####
+cotton <- tibble(stk = agridat::cate.potassium$potassium,
+                 ry = agridat::cate.potassium$yield, 
+                 dataset = "cotton")
+
+# Relative yield can be a ratio or percentage
+# The ALCC method requires RY ratio values between 0-1,
+# and percentage values between 0-100%
+
+plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
+count(cotton, stk > 100) # 3 site-years exceeded 100
+
+cotton <- cotton %>% 
+    # cap RY at 100
+    mutate(ry = if_else(ry > 100, 100, ry))
+
+plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
+
+# Create new dataset from correlation data
+alcc_results <- alcc(cotton, x = stk, y = ry)
+
+alcc_results
+
+alcc_results %>% 
+    ggplot(aes(x_center, y)) +
+    geom_point(size = 2, alpha = 0.5) +
+    geom_smooth(method = "lm") +
+    geom_vline(xintercept = 0) +
+    geom_hline(yintercept = alcc_results$intercept)
+
+# Alternatively, if you have many groups/datasets in one table
+alcc_results <- cotton %>% 
+    group_by(dataset) %>%
+    group_modify(~ alcc_sma(data = .x))
+
+##### PLOT #####
+# for a single dataset
+alcc_plot(alcc_results, sufficiency = 95)
+
+# alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
+alcc_results %>% 
+    group_by(dataset) %>%
+    group_map(~ alcc_plot(data = .x, sufficiency = 95))
+
+
+##### CREATE simplified results table for export #####
