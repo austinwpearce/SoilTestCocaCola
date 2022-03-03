@@ -135,13 +135,15 @@ alcc <- function(data,
                 adjust_by + ((pred_yt - intercept) / slope))) ^ 2
         ) %>%
         # 'dataset' might be problematic, not defined in scope
-        select(model, dataset, sufficiency, cstv, lower_cl, upper_cl, 
+        select(model, 
+               #dataset,
+               sufficiency, cstv, lower_cl, upper_cl, 
                fitted_stv, fitted_ry, pvalue, pearson, everything())
     
     alcc_summary <- steps_5_9 %>%
         select(
             model,
-            dataset,
+            #dataset,
             sufficiency,
             cstv,
             lower_cl,
