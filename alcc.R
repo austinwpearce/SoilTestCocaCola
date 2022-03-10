@@ -1,18 +1,30 @@
-#' Soil-test correlation using Arcsine-Log Calibration Curve (ALCC)
-#' Author: Austin Pearce
-#' Last update: 2022-02-18
-# ================================================================
-# 
+#' @title modified Arcsine-Log Calibration Curve, or ALCC
+#' @author Austin Pearce
+#' Last update: 2022-03-10
+#' @references Correndo et al. 2017
+#' @references Dyson and Conyers 2013
+#' @name alcc
+#' @description perform ALCC for soil test correlation
+#' @description creates new variables on existing dataset
+#' @param data a data frame with XY data
+#' @param x
+#' @param y
+#' @param sma choose if Standardized Major Axis is used
+#' @param sufficiency choose at which RY value to get CSTV and estimate CI
+#' @param summary choose if full table or just summary should be returned
+#' @name alcc_plot
+#' @description perform ALCC and make plot without data table output
+# =============================================================================
+# Could potentially add an argument that checks if data is percentage or ratio
+
+
 # package libraries needed (won't just work in base R)
-require(tidyverse) # a suite of packages for wrangling and plotting
-# these packages are for completing code examples after the alcc stuff
-require(agridat) # for obtaining a testing dataset
-library(nlraa) # for self-starting functions and predicted intervals
-library(minpack.lm) # for nlsLM, a robust backup to nls
-library(nlstools) # for residuals plots
-library(modelr) # for the r-squared and rmse
+library(tidyverse) # a suite of packages for wrangling and plotting
 
 # =============================================================================
+red <- "#CE1141"
+blue <- "#13274F"
+
 theme_set(
     theme_minimal(base_size = 14) +
         theme(
@@ -36,21 +48,10 @@ theme_set(
             #legend.position = c(1, 1)
         ))
 
-#' Doesn't work without installing other packages just work in base R
-#'
-#' @name alcc
-#' @author Austin Pearce
-#' @author Dyson and Conyers 2013
-#' @author Correndo et al. 2017
-#' @param data a data frame with XY data
-#' @param x
-#' @param y
-#' @param sma choose if Standardized Major Axis is used
-#' @param sufficiency choose at which RY value to get CSTV and estimate CI
-#' @param summary choose if full table or just summary should be returned
-#' Could potentially add an argument that checks if data is percentage or ratio
-##### Two fancy functions #####
-# Function alcc_sma() creates new variables on existing dataset
+
+# =============================================================================
+# ALCC
+# =============================================================================
 alcc <- function(data,
                  soil_test,
                  ry,

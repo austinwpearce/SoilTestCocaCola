@@ -3,6 +3,12 @@
 # and ALCC functions.
 
 library(tidyverse)
+# these packages are for completing code examples after the alcc stuff
+library(agridat) # for obtaining a testing dataset
+library(nlraa) # for self-starting functions and predicted intervals
+library(minpack.lm) # for nlsLM, a robust backup to nls
+library(nlstools) # for residuals plots
+library(modelr) # for the r-squared and rmse
 library(devtools)
 theme_set(theme_classic())
 
