@@ -1,6 +1,5 @@
-# This testing file includes a soil test correlation dataset from the agridat
-# package as an example for testing the lin_plateau, quad_plateau, mitscherlich,
-# and ALCC functions.
+# This testing file includes a soil test correlation dataset from `agridat`
+# for testing the lin_plateau, quad_plateau, mitscherlich, and alcc functions.
 
 library(tidyverse)
 # these packages are for completing code examples after the alcc stuff
@@ -18,6 +17,9 @@ source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/mai
 
 # quadratic plateau function
 source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/quad_plateau.R")
+
+# mitscherlich function
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/mitscherlich.R")
 
 # ALCC function
 source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc.R")
@@ -43,7 +45,7 @@ crop <- agridat::cate.potassium %>%
 
 lin_plateau(crop, plot = TRUE)
 quad_plateau(crop, plot = TRUE)
-AgroReg::linear.plateau(trat = crop$x, resp = crop$y)
+#AgroReg::quadratic.plateau(trat = crop$x, resp = crop$y)
 
 # While the plotting function could possibly be combined with the previous
 # function, keeping them separate is simpler
@@ -62,14 +64,13 @@ cotton <- tibble(stk = agridat::cate.potassium$potassium,
 plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
 count(cotton, stk > 100) # 3 site-years exceeded 100
 
-cotton <- cotton %>% 
-    # cap RY at 100
-    mutate(ry = if_else(ry > 100, 100, ry))
-
-plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
+# Round down to 100 or let function do it
+# cotton <- cotton %>% 
+#     # cap RY at 100
+#     mutate(ry = if_else(ry > 100, 100, ry))
 
 # Create new dataset from correlation data
-alcc_results <- alcc(cotton, stk, ry)
+alcc_results <- alcc(cotton, stk, ry, sma = FALSE)
 
 alcc_results
 
