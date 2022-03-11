@@ -23,16 +23,19 @@ source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/mai
 
 # ALCC function
 source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc.R")
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc_plot.R")
+
 
 
 # =============================================================================
 # small n
-crop <- tibble(x = c(1, 2, 3, 4, 5),
-               y = c(1, 2, 4, 4, 3))
+crop <- tibble(x = c(1, 2, 3, 4, 5, 6, 7, 8),
+               y = c(1, 2, 3, 3.5, 3.9, 4, 4, 4.1))
 
 lin_plateau(crop, plot = TRUE)
 quad_plateau(crop, plot = TRUE)
 mitscherlich(crop, plot = TRUE)
+alcc_plot(crop, x, y)
 
 nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))
 nls(y ~ SSasymp(x, a, b, c), data = crop)
@@ -70,24 +73,26 @@ count(cotton, stk > 100) # 3 site-years exceeded 100
 #     mutate(ry = if_else(ry > 100, 100, ry))
 
 # Create new dataset from correlation data
-alcc_results <- alcc(cotton, stk, ry, sma = FALSE)
+alcc(cotton, stk, ry, sma = FALSE)
 
 alcc_results
 
 alcc_results %>% 
     ggplot(aes(xt_centered, yt)) +
-    geom_point(size = 2, alpha = 0.5) +
     geom_smooth(method = "lm") +
+    geom_point(size = 2, alpha = 0.5) +
     geom_vline(xintercept = 0) +
     geom_hline(yintercept = alcc_results$intercept)
 
 # Alternatively, if you have many groups/datasets in one table
 alcc_results <- cotton %>% 
     group_by(dataset) %>%
-    group_modify(~ alcc(data = .x, stk, ry))
+    group_modify(~ alcc(data = .x, stk, ry)) %>% 
+    ungroup()
 
 ##### PLOT #####
 # for a single dataset
+
 alcc_plot(cotton, stk, ry)
 
 # alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
