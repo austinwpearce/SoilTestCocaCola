@@ -28,8 +28,7 @@ alcc_core <- function(data,
                       ry,
                       sma,
                       sufficiency,
-                      confidence,
-                      summary) {
+                      confidence) {
     
     if (nrow(data) < 8) {
         stop("Too few distinct input values. Try at least 8.")
@@ -99,6 +98,7 @@ alcc_core <- function(data,
             pred_yt  = intercept + slope * xt_centered,
             mse      = sum((yt - pred_yt) ^ 2) / (n - 2),
             ssx      = var(xt_centered) * (n - 1),
+            confidence = confidence,
             se       = sqrt(mse * ((1 / n) + ((mean_xt ^ 2) / ssx))),
             lower_cl = exp(intercept - se * qt(1 - (1 - confidence / 100) / 2,
                                                df = n - 2)),
@@ -112,7 +112,7 @@ alcc_core <- function(data,
         # 'dataset' might be problematic, not defined in scope
         select(model, 
                #dataset,
-               sufficiency, cstv, lower_cl, upper_cl, 
+               sufficiency, cstv, lower_cl, upper_cl, confidence,
                fitted_stv, fitted_ry, pvalue, pearson, everything())
 }
 
@@ -169,6 +169,7 @@ alcc <- function(data,
                     cstv,
                     lower_cl,
                     upper_cl,
+                    confidence,
                     pvalue,
                     pearson,
                     remove2x) %>% 

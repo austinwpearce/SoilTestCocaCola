@@ -35,7 +35,7 @@ crop <- tibble(x = c(1, 2, 3, 4, 5, 6, 7, 8),
 lin_plateau(crop, plot = TRUE)
 quad_plateau(crop, plot = TRUE)
 mitscherlich(crop, plot = TRUE)
-alcc_plot(crop, x, y)
+alcc_plot(crop, x, y, sufficiency = 3.5)
 
 nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))
 nls(y ~ SSasymp(x, a, b, c), data = crop)
@@ -53,9 +53,9 @@ quad_plateau(crop, plot = TRUE)
 # While the plotting function could possibly be combined with the previous
 # function, keeping them separate is simpler
 
-# ALCC ========================================================================
+# =============================================================================
+# ALCC 
 
-##### DATA IMPORT #####
 cotton <- tibble(stk = agridat::cate.potassium$potassium,
                  ry = agridat::cate.potassium$yield, 
                  dataset = "cotton")
@@ -73,22 +73,22 @@ count(cotton, stk > 100) # 3 site-years exceeded 100
 #     mutate(ry = if_else(ry > 100, 100, ry))
 
 # Create new dataset from correlation data
-alcc(cotton, stk, ry, sma = FALSE)
+alcc(cotton, stk, ry)
 
-alcc_results
-
-alcc_results %>% 
+alcc(cotton, stk, ry, sma = FALSE) %>% 
     ggplot(aes(xt_centered, yt)) +
     geom_smooth(method = "lm") +
     geom_point(size = 2, alpha = 0.5) +
     geom_vline(xintercept = 0) +
-    geom_hline(yintercept = alcc_results$intercept)
+    geom_hline(aes(yintercept = intercept))
 
 # Alternatively, if you have many groups/datasets in one table
-alcc_results <- cotton %>% 
+multiple <- cotton %>% 
     group_by(dataset) %>%
     group_modify(~ alcc(data = .x, stk, ry)) %>% 
     ungroup()
+
+multiple
 
 ##### PLOT #####
 # for a single dataset
@@ -96,9 +96,9 @@ alcc_results <- cotton %>%
 alcc_plot(cotton, stk, ry)
 
 # alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
-alcc_results %>% 
+multiple %>% 
     group_by(dataset) %>%
-    group_map(~ alcc_plot(data = .x, sufficiency = 95))
+    group_map(~ alcc_plot(data = .x, stk, ry))
 
 
 ##### CREATE simplified results table for export #####
