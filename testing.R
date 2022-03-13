@@ -93,7 +93,7 @@ multiple
 ##### PLOT #####
 # for a single dataset
 
-alcc_plot(cotton, stk, ry)
+alcc_plot(cotton, stk, ry, sufficiency = 90)
 
 # alternatively, continue using group_by + group_map framework for analyzing multiple datasets seamlessly
 multiple %>% 

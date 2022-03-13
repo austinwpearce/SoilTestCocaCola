@@ -4,12 +4,12 @@
 #' @references Correndo et al. 2017
 #' @references Dyson and Conyers 2013
 #' @name alcc
-#' @description perform ALCC/MALCC for soil test correlation
+#' @description perform ALCC/ALCC-SMA for soil test correlation
 #' @description creates new variables on existing dataset
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
 #' @param ry column for relative yield values 0-100%
-#' @param sma choose if Standardized Major Axis (SMA) is used for Modified ALCC (MALCC)
+#' @param sma choose if Standardized Major Axis (SMA) regression is used w/ ALCC
 #' @param sufficiency choose at which RY value to get CSTV
 #' @param confidence choose at which confidence level to estimate CI of CSTV
 #' @param summary choose if full table or just summary should be returned
@@ -46,19 +46,12 @@ alcc_core <- function(data,
     x <- enquo(soil_test)
     y <- enquo(ry)
     
-    input <- data %>% 
-        select(!!x, !!y)
-    
-    if (max(input[,2]) > 100) {
-        warning("One or more original RY values exceeded 100%.\nAll RY values greater than 100% have been capped to 100% for arcsine transformation.", call. = FALSE)
-    }
-    
     steps_1_4 <- data %>%
         mutate(
             stv = !!x,
             # RY values greater than 100 are capped at 100
             ry_cap = if_else(!!y > 100, 100, !!y),
-            model = case_when(sma == TRUE ~ "MALCC",
+            model = case_when(sma == TRUE ~ "ALCC-SMA",
                               sma == FALSE ~ "ALCC"),
             # get sample size
             n = n(),
@@ -110,9 +103,8 @@ alcc_core <- function(data,
                 adjust_by + ((pred_yt - intercept) / slope))) ^ 2
         ) %>%
         # 'dataset' might be problematic, not defined in scope
-        select(model, 
-               #dataset,
-               sufficiency, cstv, lower_cl, upper_cl, confidence,
+        select(model, sufficiency, cstv,
+               lower_cl, upper_cl, confidence,
                fitted_stv, fitted_ry, pvalue, pearson, everything())
 }
 
@@ -137,32 +129,54 @@ alcc <- function(data,
     x <- enquo(soil_test)
     y <- enquo(ry)
     
-    alcc_table <- alcc_core(data,
-                            soil_test = !!x,
-                            ry = !!y,
-                            sma = sma,
-                            sufficiency = sufficiency,
-                            confidence = confidence)
+    test <- data %>% 
+        select(!!x, !!y)
     
-    if (remove2x == TRUE) {
-        cstv_2x <- (unique(alcc_table$cstv)) * 2
-        # redo alcc() with data greater than twice the CSTV removed
-        alcc_table <- alcc_table %>% 
-            filter(stv <= cstv_2x) %>% 
-            alcc(soil_test = stv,
-                 ry = ry_cap,
-                 sma = sma,
-                 sufficiency = sufficiency,
-                 confidence = confidence) %>% 
-            mutate(remove2x = "TRUE")
-    } else {
-        alcc_table <- alcc_table %>% 
-            mutate(remove2x = "FALSE")
+    if (max(test[,2]) > 100) {
+        warning("One or more original RY values exceeded 100%.\nAll RY values greater than 100% have been capped to 100% for arcsine transformation.", call. = FALSE)
     }
+    
+    if (min(test[,1]) < 0) {
+        stop("One or more soil test values are less than 0. Remove all data with STV values less than 0 prior to fitting.", call. = FALSE)
+    }
+    
+    # stage 1, 2, and 3 described by Dyson and Conyers 2013
+    stage_1 <- data %>%
+        alcc_core(
+            soil_test = !!x,
+            ry = !!y,
+            sma = sma,
+            sufficiency = 100,
+            confidence = confidence
+        )
+    
+    cstv_100 <<- unique(stage_1$cstv)
+    
+    stage_2 <- data %>%
+        filter(!!x <= cstv_100) %>% 
+        alcc_core(
+            soil_test = !!x,
+            ry = !!y,
+            sma = sma,
+            sufficiency = 90,
+            confidence = confidence
+        )
+    
+    cstv90_2x <<- unique(stage_2$cstv) * 2
+    
+    stage_3 <- data %>%
+        filter(case_when(remove2x == TRUE ~ !!x <= cstv90_2x,
+                         remove2x == FALSE ~ !!x <= cstv_100)) %>%  
+        alcc_core(soil_test = !!x,
+                  ry = !!y,
+                  sma = sma,
+                  sufficiency = sufficiency,
+                  confidence = confidence) %>% 
+        mutate(remove2x = "TRUE")
     
     if(summary == TRUE) {
         return(
-            alcc_table %>%
+            stage_3 %>%
                 select(
                     model,
                     sufficiency,
@@ -176,7 +190,7 @@ alcc <- function(data,
                 distinct(across(everything()))
         )
     } else {
-        return(alcc_table)
+        return(stage_3)
     }
     
 }

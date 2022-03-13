@@ -9,7 +9,7 @@
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
 #' @param ry column for relative yield values 0-100%
-#' @param sma choose if Standardized Major Axis (SMA) is used for Modified ALCC (MALCC)
+#' @param sma choose if Standardized Major Axis (SMA) regression is used w/ ALCC
 #' @param sufficiency choose at which RY value to get CSTV
 #' @param confidence choose at which confidence level to estimate CI of CSTV
 #' @param remove2x if TRUE, redo alcc() with data greater than twice the CSTV removed
@@ -78,33 +78,24 @@ alcc_plot <- function(data,
     # enquo let's the user enter their own column names for x and y variables
     x <- enquo(soil_test)
     y <- enquo(ry)
-    # pass to alcc function
-    alcc_table <- alcc(data,
-                       soil_test = !!x,
-                       ry = !!y,
-                       sma = sma,
-                       sufficiency = sufficiency,
-                       confidence = confidence)
     
-    if (remove2x == TRUE) {
-        cstv_2x <- (unique(alcc_table$cstv)) * 2
-        # redo alcc() with data greater than twice the CSTV removed
-        output <- alcc_table %>% 
-            filter(stv <= cstv_2x) %>% 
-            alcc(soil_test = stv,
-                 ry = ry_cap,
-                 sma = sma,
-                 sufficiency = sufficiency,
-                 confidence = confidence) %>% 
-            mutate(remove2x = "TRUE")
-    } else {
-        output <- alcc_table %>% 
-            mutate(remove2x = "FALSE")
-    }
+    input <- data %>% 
+        transmute(stv = !!x,
+                  # RY values greater than 100 are capped at 100
+                  ry_cap = if_else(!!y > 100, 100, !!y))
+    
+    # pass to alcc function
+    output <- alcc(data,
+                   soil_test = !!x,
+                   ry = !!y,
+                   sma = sma,
+                   sufficiency = sufficiency,
+                   confidence = confidence,
+                   remove2x = remove2x)
     
     # for plot annotations
     
-    maxx <- max(alcc_table$stv)
+    maxx <- max(input$stv)
     
     cstv <- (unique(output$cstv))
     cstv <- if_else(cstv < 10, round(cstv, 1), round(cstv, 0))
@@ -120,20 +111,21 @@ alcc_plot <- function(data,
     pearson <- round(unique(output$pearson), 2)
     
     # plot includes all data, even if remove2x == TRUE, but curve will follow remove2x
-    alcc_table %>%
-        ggplot(aes(stv, ry_cap)) +
-        geom_point(size = 2, alpha = 0.5) +
+    output %>%
+        ggplot() +
+        geom_point(data = input,
+                   aes(stv, ry_cap),
+                   size = 2, alpha = 0.5,
+                   color = case_when(
+                       remove2x == FALSE & input$stv > cstv_100 ~ red,
+                       remove2x == TRUE & input$stv > cstv90_2x ~ red,
+                       TRUE ~ "black")) +
         geom_vline(xintercept = lower_cl,
                    alpha = 0.5,
                    linetype = 3) +
         geom_vline(xintercept = upper_cl,
                    alpha = 0.5,
                    linetype = 3) +
-        # twice the CSTV
-        # geom_vline(xintercept = cstv * 2,
-        #            alpha = 0.2,
-        #            linetype = 2) +
-        # fitted values from back-transformed regression line from alcc()
         geom_line(aes(x = fitted_stv,
                       y = fitted_ry),
                   color = red) +
@@ -152,12 +144,12 @@ alcc_plot <- function(data,
             vjust = 0,
             alpha = 0.8
         ) +
-        # scale_x_continuous(breaks =
-        #                        seq(0, 1000, if_else(
-        #                            max(output$stv) >= 200, 40,
-        #                            if_else(max(output$stv) >= 100, 20,
-        #                                    if_else(max(output$stv) >= 50, 10, 5))
-        #                        ))) +
+        scale_x_continuous(breaks =
+                               seq(0, 10000, by = if_else(
+                                   maxx >= 200, 40,
+                                   if_else(maxx >= 100, 20,
+                                           if_else(maxx >= 50, 10, 5))
+                               ))) +
         scale_y_continuous(breaks = seq(0, 105, 10)) +
         labs(
             subtitle = if_else(sma == TRUE,
@@ -167,8 +159,8 @@ alcc_plot <- function(data,
             y = "Relative yield (%)",
             caption = paste0(
                 if_else(remove2x == TRUE,
-                        "Data with soil test values more than twice the initial CSTV excluded from model.",
-                        "All data included in model."),
+                        "STV > CSTV90 * 2 excluded from model (red points)",
+                        "STV > CSTV100 excluded from model (red points)"),
                 "\nVertical dotted lines show lower and upper confidence limits"
             )
         )
