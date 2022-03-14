@@ -26,7 +26,9 @@ source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/mai
 
 # =============================================================================
 red <- "#CE1141"
+gold <- "#EAAA00"
 blue <- "#13274F"
+black <- "#000000"
 
 theme_set(
     theme_minimal(base_size = 14) +
@@ -45,11 +47,12 @@ theme_set(
             axis.title.x = element_text(
                 hjust = 0,
                 margin = margin(t = 10, r = 0, b = 0, l = 0, unit = "pt")),
-            axis.text = element_text(),
-            legend.title.align = 0,
-            legend.key.height = unit(x = 5, units = "mm"),
-            legend.justification = c(1, 1)
-            #legend.position = c(1, 1)
+            axis.text = element_text()
+            #legend.title.align = 0,
+            #legend.key.height = unit(x = 5, units = "mm"),
+            #legend.justification = c(1, 1),
+            #legend.title = element_blank(),
+            #legend.position = c(1, 0.5)
         ))
 
 
@@ -109,17 +112,18 @@ alcc_plot <- function(data,
     #sufficiency <- unique(output$sufficiency)
     
     pearson <- round(unique(output$pearson), 2)
-    
+
     # plot includes all data, even if remove2x == TRUE, but curve will follow remove2x
     output %>%
         ggplot() +
         geom_point(data = input,
                    aes(stv, ry_cap),
-                   size = 2, alpha = 0.5,
+                   size = 2, alpha = 0.7,
                    color = case_when(
-                       remove2x == FALSE & input$stv > cstv_100 ~ red,
-                       remove2x == TRUE & input$stv > cstv90_2x ~ red,
-                       TRUE ~ "black")) +
+                               remove2x == FALSE & input$stv > cstv_100 ~ red,
+                               remove2x == FALSE & input$stv > cstv90_2x ~ gold,
+                               remove2x == TRUE & input$stv > cstv90_2x ~ red,
+                               TRUE ~ black)) +
         geom_vline(xintercept = lower_cl,
                    alpha = 0.5,
                    linetype = 3) +
@@ -143,7 +147,7 @@ alcc_plot <- function(data,
             hjust = 1,
             vjust = 0,
             alpha = 0.8
-        ) +
+        ) + 
         scale_x_continuous(breaks =
                                seq(0, 10000, by = if_else(
                                    maxx >= 200, 40,
@@ -159,9 +163,22 @@ alcc_plot <- function(data,
             y = "Relative yield (%)",
             caption = paste0(
                 if_else(remove2x == TRUE,
-                        "STV > CSTV90 * 2 excluded from model (red points)",
-                        "STV > CSTV100 excluded from model (red points)"),
+                        "Red points > CSTV90 * 2 excluded from model",
+                        "Red points > CSTV100 excluded from model. Yellow points > CSTV90 * 2 not excluded."),
                 "\nVertical dotted lines show lower and upper confidence limits"
             )
         )
 }
+
+# Attempt to color code the points in the model
+# input <- input %>% 
+#     mutate(removed = case_when(
+#         remove2x == FALSE & input$stv > cstv_100 ~ "Excluded > CSTV100",
+#         remove2x == FALSE & input$stv > cstv90_2x ~ "Included > CSTV90*2",
+#         remove2x == TRUE & input$stv > cstv90_2x ~ "Excluded > CSTV90*2",
+#         TRUE ~ "Included < CSTV90*2"))
+# { 
+#     if(remove2x == TRUE)
+#         scale_color_manual(values = c(red, black)) 
+#     else scale_color_manual(values = c(red, black, gold))
+# } +
