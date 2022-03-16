@@ -75,7 +75,7 @@ mitscherlich <- function(data,
     maxy <- max(data$y)
     
     # build the model/fit =====
-    nls_model <<- try(fit_mb(data))
+    nls_model <- try(fit_mb(data))
     
     if (inherits(nls_model, "try-error")) {
         corr_model <-
