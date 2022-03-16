@@ -12,29 +12,31 @@ library(devtools)
 theme_set(theme_classic())
 
 # Load correlation functions
+base_url <- "https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/"
 # linear plateau function
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/lin_plateau.R")
+source_url(str_c(base_url, "lin_plateau.R"))
 
 # quadratic plateau function
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/quad_plateau.R")
+source_url(str_c(base_url, "quad_plateau.R"))
 
 # mitscherlich function
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/mitscherlich.R")
+source_url(str_c(base_url, "mitscherlich.R"))
 
 # ALCC function
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc.R")
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc_plot.R")
+source_url(str_c(base_url, "alcc.R"))
+source_url(str_c(base_url, "alcc_plot.R"))
 
 
 
 # =============================================================================
 # small n
-crop <- tibble(x = c(1, 2, 3, 4, 5, 6, 7, 8),
-               y = c(1, 2, 3, 3.5, 3.9, 4, 4, 4.1))
+crop <- tibble(x = seq(1, 4, 0.5),
+               y = c(20, 70, 90, 95, 98, 92, 100))
 
 lin_plateau(crop, plot = TRUE)
 quad_plateau(crop, plot = TRUE)
 mitscherlich(crop, plot = TRUE)
+mitscherlich(crop, plot = TRUE, band = TRUE)
 alcc_plot(crop, x, y, sufficiency = 3.5)
 
 nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))

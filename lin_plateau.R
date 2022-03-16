@@ -87,7 +87,7 @@ lin_plateau <- function(data,
     b0 <- coef(corr_model)[[1]]
     b1 <- coef(corr_model)[[2]]
     jp <- coef(corr_model)[[3]]
-    join_point <- round(jp, 0)
+    cstv <- round(jp, 0)
     plateau <- b0 + b1 * jp
     
     # CSTV at defined % of max/plateau (use percent_of_max argument)
@@ -95,12 +95,6 @@ lin_plateau <- function(data,
     # 
     # cstv_adj <-
     #     round(((plateau * percent_of_max / 100) - b0) / b1, 0)
-    # 
-    # cstv_95ry <- if_else(
-    #     condition = plateau >= 95,
-    #     true = round((95 - b0) / b1, 0),
-    #     false = NULL
-    # )
     # 
     # cstv_90ry <- if_else(
     #     condition = plateau >= 90,
@@ -115,27 +109,23 @@ lin_plateau <- function(data,
     equation <- paste0(round(b0, 1), " + ",
                        round(b1, 2), "x")
     
-    # Table output =====
+    # Table output =================================================
     if (plot == FALSE) {
         {
             if (resid == TRUE)
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         tibble(
-            intercept = b0,
-            slope = b1,
+            intercept = round(b0, 2),
+            slope = round(b1, 2),
             equation,
-            join_point,
+            cstv,
             plateau = round(plateau, 1),
             AIC,
             rmse,
             rsquared
             # cstv_adj,
             # percent_of_max,
-            # cstv_95ry = if_else(cstv_95ry > 0,
-            #                     cstv_95ry,
-            #                     NULL),
-            # # at 95% RY
             # cstv_90ry = if_else(cstv_90ry > 0,
             #                     cstv_90ry,
             #                     NULL),
@@ -180,8 +170,8 @@ lin_plateau <- function(data,
                                breaks = seq(0, maxy * 2, 10)) +
             annotate(
                 "text",
-                label = paste("CSTV =", join_point, "ppm"),
-                x = join_point,
+                label = paste("CSTV =", cstv, "ppm"),
+                x = cstv,
                 y = 0,
                 angle = 90,
                 hjust = 0,
@@ -201,14 +191,10 @@ lin_plateau <- function(data,
                 "text",
                 alpha = 0.5,
                 label = paste0(
-                    "y = ",
-                    equation,
-                    "\nAIC = ",
-                    AIC,
-                    "\nRMSE = ",
-                    rmse,
-                    "\nR-squared = ",
-                    rsquared
+                    "y = ", equation,
+                    "\nAIC = ", AIC,
+                    "\nRMSE = ", rmse,
+                    "\nR-squared = ", rsquared
                 ),
                 x = maxx,
                 y = 0,
