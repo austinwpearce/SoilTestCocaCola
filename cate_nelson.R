@@ -7,12 +7,13 @@ cate_nelson <-
              verbose = FALSE,
              plot = FALSE) {
         par(mfrow = c(2, 3))
-        cn <<- cateNelson(
+        cn <- cateNelson(
             x          = data$x,
             y          = data$y,
             plotit     = FALSE,
             hollow     = TRUE,
             verbose    = verbose,
+            progress = FALSE,
             xlab       = "stv",
             ylab       = "ry",
             trend      = trend,
@@ -23,6 +24,7 @@ cate_nelson <-
         )
         
         cstv <- cn$CLx
+        cry <- cn$CLy
         
         if (plot == FALSE) {
             # from Steve Culman
@@ -65,15 +67,17 @@ cate_nelson <-
                 arrange(desc(r2)) %>%
                 slice_max(r2)
             
-            tibble(cstv = round(cn$CLx, 0)) %>%
-                bind_cols(cn_rsq)
+            return(tibble(cstv = round(cstv, 1),
+                          ry = round(cry, 1)) %>%
+                bind_cols(cn_rsq))
         } else {
+            
             data %>%
                 ggplot(aes(x, y)) +
                 geom_vline(xintercept = cstv,
                            alpha = 0.5,
                            linetype = 3) +
-                geom_hline(yintercept = cn$CLy,
+                geom_hline(yintercept = cry,
                            alpha = 0.5,
                            linetype = 3) +
                 geom_point(size = 3, alpha = 0.5) +
@@ -88,13 +92,21 @@ cate_nelson <-
                     vjust = 1.5,
                     alpha = 0.5
                 ) +
+                annotate(
+                    "text",
+                    label = paste0("RY = ", round(cry, 1), "%"),
+                    x = max(data$x),
+                    y = cry,
+                    angle = 0,
+                    hjust = 1,
+                    vjust = 1.5,
+                    alpha = 0.5
+                ) +
                 scale_x_continuous(breaks = seq(0, max(data$x) + 20, 20)) +
                 labs(
                     x = "Soil test value (mg/kg)",
                     y = "Relative yield (%)",
-                    caption = paste("Each point is a site. n =", nrow(data)),
-                    subtitle = paste("Cate-Nelson",
-                                     round(cn$CLx, 0), "ppm stv")
+                    caption = paste("Each point is a site. n =", nrow(data))
                 ) +
                 theme(legend.position =  "none")
         }
