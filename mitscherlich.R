@@ -213,7 +213,7 @@ mitscherlich <- function(data,
                 label = paste0(percent_of_max, "% of asymptote = ",
                                round(new_asym,1), "% RY"),
                 x = maxx,
-                y = 0,
+                y = new_asym,
                 vjust = 1.5,
                 hjust = 1
             )+
