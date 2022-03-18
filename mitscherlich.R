@@ -195,6 +195,8 @@ mitscherlich <- function(data,
             ) +
             geom_point(size = 3, alpha = 0.5) +
             geom_rug(alpha = 0.2, length = unit(2, "pt")) +
+            scale_y_continuous(limits = c(0, maxy),
+                               breaks = seq(0, maxy * 2, 10)) +
             annotate(
                 "text",
                 label = paste("CSTV =", round(cstv,0), "ppm"),

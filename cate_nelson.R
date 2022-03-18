@@ -1,6 +1,11 @@
 ## Cate-Nelson ===========================================
 library(rcompanion)
 
+red <- "#CE1141"
+gold <- "#EAAA00"
+blue <- "#13274F"
+black <- "#000000"
+
 cate_nelson <-
     function(data,
              trend = "positive",
@@ -22,7 +27,7 @@ cate_nelson <-
             xthreshold = 0.10,
             ythreshold = 0.15
         )
-        
+        maxy <- max(data$y)
         cstv <- cn$CLx
         cry <- cn$CLy
         
@@ -75,13 +80,15 @@ cate_nelson <-
             data %>%
                 ggplot(aes(x, y)) +
                 geom_vline(xintercept = cstv,
-                           alpha = 0.5,
-                           linetype = 3) +
+                           alpha = 1,
+                           color = blue) +
                 geom_hline(yintercept = cry,
-                           alpha = 0.5,
-                           linetype = 3) +
+                           alpha = 1,
+                           color = blue) +
                 geom_point(size = 3, alpha = 0.5) +
                 geom_rug(alpha = 0.2, length = unit(2, "pt")) +
+                scale_y_continuous(limits = c(0, maxy),
+                                   breaks = seq(0, maxy * 2, 10)) +
                 annotate(
                     "text",
                     label = paste("CSTV =", cstv, "ppm"),
