@@ -9,6 +9,11 @@ library(nlraa) # for self-starting functions
 # need to be renamed to x and y
 # for example: %>% rename(x = stv, y = ry) %>% 
 
+red <- "#CE1141"
+gold <- "#EAAA00"
+blue <- "#13274F"
+black <- "#000000"
+
 # The MB NLS Model with three parameters (asymptote, "intercept", curvatuve)
 # must be evaluated at Y less than asymptote for cstv
 # ========================================================
@@ -176,11 +181,10 @@ mitscherlich <- function(data,
                     alpha = 0.05)
             } +
             geom_vline(xintercept = cstv,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 1,
+                       color = blue) +
             geom_hline(yintercept = new_asym,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 0.2) +
             geom_line(
                 stat="smooth",
                 method = "nls",

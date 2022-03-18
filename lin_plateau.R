@@ -26,6 +26,11 @@ library(modelr) # for the r-squared and rmse
 # example, will need to be renamed to x and y
 # for example: %>% rename/mutate(x = stv, y = ry) %>%
 
+red <- "#CE1141"
+gold <- "#EAAA00"
+blue <- "#13274F"
+black <- "#000000"
+
 # =============================================================================
 # Linear plateau model
 # y = b0 + b1x
@@ -156,14 +161,13 @@ lin_plateau <- function(data,
                     alpha = 0.05)
             } +
             geom_vline(xintercept = jp,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 1,
+                       color = blue) +
             geom_hline(yintercept = plateau,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 0.2) +
             geom_line(data = lp_line,
                       aes(x = x, y = y),
-                      color = "#CC0000") +
+                      color = red) +
             geom_point(size = 3, alpha = 0.5) +
             geom_rug(alpha = 0.2, length = unit(2, "pt")) +
             scale_y_continuous(limits = c(0, maxy),

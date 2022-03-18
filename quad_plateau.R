@@ -29,6 +29,10 @@ library(modelr) # for the r-squared and rmse
 #' quadratic portion at certain Y value
 #' @export
 
+red <- "#CE1141"
+gold <- "#EAAA00"
+blue <- "#13274F"
+black <- "#000000"
 #' The QP model and parameters
 #' y = b0 + b1x + b2x^2
 #' b0 = intercept
@@ -162,11 +166,10 @@ quad_plateau <- function(data,
                     alpha = 0.05)
             } +
             geom_vline(xintercept = jp,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 1,
+                       color = blue) +
             geom_hline(yintercept = plateau,
-                       alpha = 0.5,
-                       linetype = 3) +
+                       alpha = 0.2) +
             geom_line(
                 stat = "smooth",
                 method = "nls",
@@ -191,7 +194,7 @@ quad_plateau <- function(data,
             ) +
             annotate(
                 "text",
-                label = paste0("Plateau = ", round(plateau, 1), "%"),
+                label = paste0("Plateau = ", plateau, "%"),
                 x = maxx,
                 y = plateau,
                 alpha = 0.5,
