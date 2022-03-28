@@ -212,7 +212,7 @@ mitscherlich <- function(data,
                 "text",
                 alpha = 0.5,
                 label = paste0(
-                    "y = ", equation,
+                    #"y = ", equation,
                     "\nAIC = ", AIC,
                     "\nRMSE = ", rmse,
                     "\nR-squared = ", rsquared
