@@ -213,7 +213,7 @@ mitscherlich <- function(data,
                 alpha = 0.5,
                 label = paste0(
                     #"y = ", equation,
-                    "\nAIC = ", AIC,
+                    "AIC = ", AIC,
                     "\nRMSE = ", rmse,
                     "\nR-squared = ", rsquared
                     #"\nCSTV at 95 and 90% RY = ", cstv_95ry," & ", cstv_90ry, " ppm"
