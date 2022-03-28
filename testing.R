@@ -9,7 +9,6 @@ library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
 library(modelr) # for the r-squared and rmse
 library(devtools)
-theme_set(theme_classic())
 
 # Load correlation functions
 base_url <- "https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/"
@@ -56,11 +55,23 @@ quad_plateau(crop, plot = TRUE)
 # function, keeping them separate is simpler
 
 # =============================================================================
-# ALCC 
-
 cotton <- tibble(stk = agridat::cate.potassium$potassium,
                  ry = agridat::cate.potassium$yield, 
                  dataset = "cotton")
+
+cotton %>% 
+    mutate(x = stk, y = ry) %>% 
+    lin_plateau(plot = TRUE)
+
+cotton %>% 
+    mutate(x = stk, y = ry) %>% 
+    quad_plateau(plot = TRUE)
+
+cotton %>% 
+    mutate(x = stk, y = ry) %>% 
+    mitscherlich(plot = TRUE)
+
+# ALCC
 
 # Relative yield can be a ratio or percentage
 # The ALCC method requires RY ratio values between 0-1,

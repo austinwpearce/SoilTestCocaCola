@@ -1,3 +1,6 @@
+# This function uses SSasym, a self-starting function.
+# These work better than guessing at starting values
+
 library(tidyverse) # yes this loads lots of packages but these should be installed anyways
 library(modelr)
 library(minpack.lm) # for nlsLM which is more robust
@@ -14,45 +17,33 @@ gold <- "#EAAA00"
 blue <- "#13274F"
 black <- "#000000"
 
-# The MB NLS Model with three parameters (asymptote, "intercept", curvatuve)
+# The "Mitscherlich" nls model with three parameters
 # must be evaluated at Y less than asymptote for cstv
 # ========================================================
-# y = a - b + exp(-c*x)
-# a = asymptote
-# b = difference to intercept, where a - b = intercept I believe
-# c = curvature (ought to be negative)
+# y = a + (a - b) * e^(-e^(c) * x)
+# a = horizontal asymptote
+# b = intercept when X is 0
+# c = curvature, natural log of the rate constant (ought to be negative)
 
-mb <- function(x, a, b, c) {
+mit <- function(x, a, b, c) {
     a - b * exp(c * x)
 }
 
-
-fit_mb <- function(data){
-    start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
-    fit <- nls(formula = y ~ mb(x, a, b, c),
-               data = data,
-               start = list(a = mean(data$y),
-                            b = start$coef[[2]],
-                            c = start$coef[[3]]),
-                 control = nls.lm.control(maxiter = 500))
-    return(fit)
-}
-
-fit_mbLM <- function(data){
-    start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
-    fit <- nlsLM(formula = y ~ mb(x, a, b, c),
+# Alternative is to use SSasym
+fit_mit <- function(data){
+    fit <- nlsLM(formula = y ~ mit(x, a, b, c),
                  data = data,
-                 start = list(a = mean(data$y),
-                              b = start$coef[[2]],
-                              c = start$coef[[3]]),
-                 control = nls.lm.control(maxiter = 500)
-                 #upper = c(asym = Inf, b = Inf, c = Inf),
-                 #lower = c(asym = min(data$y), b = -Inf, c = -Inf),
+                 start = list(a = max(data$y),
+                              b = mean(data$y),
+                              c = -0.01),
+                 control = nls.lm.control(maxiter = 500),
+                 upper = c(asym = Inf, b = Inf, c = 0),
+                 lower = c(asym = min(data$y), b = -Inf, c = -Inf),
                  )
     return(fit)
 }
 
-## Quadratic-plateau Bundled Function with Plotting
+## "Mitscherlich" Bundled Function with Plotting
 # ========================================================
 # only works if x = "stv" and y = "ry"
 # returns either table OR plot
@@ -80,11 +71,11 @@ mitscherlich <- function(data,
     maxy <- max(data$y)
     
     # build the model/fit =====
-    nls_model <- try(fit_mb(data))
+    nls_model <- try(nls(y ~ SSasymp(x, a, b, c), data))
     
     if (inherits(nls_model, "try-error")) {
         corr_model <-
-            try(fit_mbLM(data))
+            try(nlsLM(y ~ SSasymp(x, a, b, c), data))
     } else {
         corr_model <- nls_model
     }
@@ -109,16 +100,16 @@ mitscherlich <- function(data,
     b <- coef(corr_model)[[2]]
     c <- coef(corr_model)[[3]]
     new_asym <- a * percent_of_max / 100
-    cstv <- log((a - new_asym) / b) / c
+    cstv <- log((new_asym - a) / (b - a)) / (-exp(c))
     
     # cstv_90ry <- if_else(condition = asym >= 90, 
     #                      true = round(log((asym - 90) / b) / c, 0),
     #                      false = NULL
     # )
     
-    equation <- paste0(round(a, 1), " - ",
-                       round(b, 2), "e^",
-                       round(c, 3), "x")
+    # equation <- paste0(round(a, 1), " - ",
+    #                    round(b, 2), "e^",
+    #                    round(c, 3), "x")
     
     # # get error for each parameter
     # se_a <- round(tidy(corr_model)$std.error[1], 2)
@@ -133,9 +124,9 @@ mitscherlich <- function(data,
         }
         tibble(
             asymptote = round(a, 1),
-            b = round(b, 2),
-            c = round(c, 3),
-            equation,
+            intercept = round(b, 2),
+            ln_rc = round(c, 2),
+            #equation,
             percent_of_max,
             #new_ry = round(new_asym, 0),
             cstv = round(cstv, 0),
@@ -188,7 +179,7 @@ mitscherlich <- function(data,
             geom_line(
                 stat="smooth",
                 method = "nls",
-                formula = y ~ mb(x, a, b, c),
+                formula = y ~ SSasymp(x, a, b, c),
                 method.args = list(start = as.list(coef(corr_model))),
                 se = FALSE,
                 color = "#CC0000"
