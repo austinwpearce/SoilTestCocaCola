@@ -69,7 +69,7 @@ cotton %>%
 
 cotton %>% 
     mutate(x = stk, y = ry) %>% 
-    mitscherlich(plot = TRUE)
+    mitscherlich(plot = TRUE, band = TRUE)
 
 # ALCC
 
