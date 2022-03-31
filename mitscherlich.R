@@ -72,13 +72,13 @@ mitscherlich <- function(data,
     maxy <- max(data$y)
     
     # build the model/fit =====
-    corr_model <<- try(nlsLM(
+    corr_model <- try(nlsLM(
         formula = y ~ SSasymp(x, a, b, c),
         data = data,
         start = list(
             a = maxy,
-            b = miny,
-            c = -1
+            b = if_else(force_origin == TRUE, 0, miny),
+            c = -0.5
         ),
         upper = c(
             a = Inf,
@@ -109,13 +109,13 @@ mitscherlich <- function(data,
     # get model coefficients
     a <- coef(corr_model)[[1]]
     b <- coef(corr_model)[[2]]
-    c <- coef(corr_model)[[3]]
+    c <- exp(coef(corr_model)[[3]])
     # new values
     ry_cstv <- a * percent_of_max / 100
-    cstv <- log((ry_cstv - a) / (b - a)) / -exp(c)
+    cstv <- log((ry_cstv - a) / (b - a)) / -c
     
     equation <- paste0(round(a, 1), " + (", round(b,1), " - ", round(a, 1),
-                       ") * e^(-e^", round(c, 3), ") * x)")
+                       ") * e^(-", round(c, 3), "x)")
     
     # # get error for each parameter
     # se_a <- round(tidy(corr_model)$std.error[1], 2)
@@ -158,7 +158,7 @@ mitscherlich <- function(data,
                 bind_cols(data)
         }
         
-        pred_y <- tibble(x = seq(minx, maxx, 1)) %>%
+        pred_y <- tibble(x = seq(minx, maxx, 0.1)) %>%
             gather_predictions(corr_model)
         
         mit_plot <- data %>% 
