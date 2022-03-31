@@ -69,7 +69,11 @@ cotton %>%
 
 cotton %>% 
     mutate(x = stk, y = ry) %>% 
-    mitscherlich(plot = TRUE, band = TRUE)
+    nls(y ~ SSasymp(x, a, b, c), data = .)
+
+cotton %>% 
+    mutate(x = stk, y = ry) %>% 
+    mitscherlich(plot = TRUE, force_origin = TRUE)
 
 # ALCC
 

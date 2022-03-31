@@ -26,7 +26,7 @@ black <- "#000000"
 # c = curvature, natural log of the rate constant (ought to be negative)
 
 mit <- function(x, a, b, c) {
-    a - b * exp(c * x)
+    a + (b - a) * exp(-exp(c) * x)
 }
 
 # Alternative is to use SSasym
@@ -34,11 +34,11 @@ fit_mit <- function(data){
     fit <- nlsLM(formula = y ~ mit(x, a, b, c),
                  data = data,
                  start = list(a = max(data$y),
-                              b = mean(data$y),
-                              c = -0.01),
+                              b = min(data$y),
+                              c = -1),
                  control = nls.lm.control(maxiter = 500),
-                 upper = c(asym = Inf, b = Inf, c = 0),
-                 lower = c(asym = min(data$y), b = -Inf, c = -Inf),
+                 upper = c(a = Inf, b = max(data$y), c = 0),
+                 lower = c(a = min(data$y), b = -Inf, c = -Inf)
                  )
     return(fit)
 }
@@ -48,6 +48,7 @@ fit_mit <- function(data){
 # only works if x = "stv" and y = "ry"
 # returns either table OR plot
 mitscherlich <- function(data,
+                         force_origin = FALSE,
                          percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
@@ -71,21 +72,31 @@ mitscherlich <- function(data,
     maxy <- max(data$y)
     
     # build the model/fit =====
-    nls_model <- try(nls(y ~ SSasymp(x, a, b, c), data))
-    
-    if (inherits(nls_model, "try-error")) {
-        corr_model <-
-            try(nlsLM(y ~ SSasymp(x, a, b, c), data))
-    } else {
-        corr_model <- nls_model
-    }
+    corr_model <<- try(nlsLM(
+        formula = y ~ SSasymp(x, a, b, c),
+        data = data,
+        start = list(
+            a = maxy,
+            b = miny,
+            c = -1
+        ),
+        upper = c(
+            a = Inf,
+            b = if_else(force_origin == TRUE, 0, maxy),
+            c = 0),
+        lower = c(
+            a = miny,
+            b = if_else(force_origin == TRUE, 0, -Inf),
+            c = -Inf
+        )
+    )
+    )
     
     if (inherits(corr_model, "try-error")) {
-        stop("Mitscherlich model could not be fit with nls or nlsLM.
-             Try something else.")
-    } else {
-        corr_model <- corr_model
-    }
+        stop("Mitscherlich model could not be fit. Try something else.")
+    } # else {
+    #     corr_model <- corr_model
+    # }
     
     # Find p-value and pseudo R-squared
     AIC <- round(AIC(corr_model), 0)
@@ -99,17 +110,12 @@ mitscherlich <- function(data,
     a <- coef(corr_model)[[1]]
     b <- coef(corr_model)[[2]]
     c <- coef(corr_model)[[3]]
-    new_asym <- a * percent_of_max / 100
-    cstv <- log((new_asym - a) / (b - a)) / (-exp(c))
+    # new values
+    ry_cstv <- a * percent_of_max / 100
+    cstv <- log((ry_cstv - a) / (b - a)) / -exp(c)
     
-    # cstv_90ry <- if_else(condition = asym >= 90, 
-    #                      true = round(log((asym - 90) / b) / c, 0),
-    #                      false = NULL
-    # )
-    
-    # equation <- paste0(round(a, 1), " - ",
-    #                    round(b, 2), "e^",
-    #                    round(c, 3), "x")
+    equation <- paste0(round(a, 1), " + (", round(b,1), " - ", round(a, 1),
+                       ") * e^(-e^", round(c, 3), ") * x)")
     
     # # get error for each parameter
     # se_a <- round(tidy(corr_model)$std.error[1], 2)
@@ -125,14 +131,11 @@ mitscherlich <- function(data,
         tibble(
             asymptote = round(a, 1),
             intercept = round(b, 2),
-            ln_rc = round(c, 2),
-            #equation,
+            rate_constant = round(c, 2),
+            equation,
             percent_of_max,
-            #new_ry = round(new_asym, 0),
+            ry_cstv = round(ry_cstv, 0),
             cstv = round(cstv, 0),
-            # cstv_90ry = if_else(cstv_90ry > 0,
-            #                     cstv_90ry,
-            #                     NULL), # at 90% RY
             AIC,
             rmse,
             rsquared
@@ -146,7 +149,7 @@ mitscherlich <- function(data,
         
         {
             if (band == TRUE)
-                predicted <- 
+                pred_band <- 
                 # changed to predict_nls instead of predict2_nls
                 nlraa::predict_nls(corr_model,
                                    newdata = data,
@@ -155,42 +158,34 @@ mitscherlich <- function(data,
                 bind_cols(data)
         }
         
-        {
-            if (band == FALSE)
-                predicted <- data
-        }
+        pred_y <- tibble(x = seq(minx, maxx, 1)) %>%
+            gather_predictions(corr_model)
         
-        mit_plot <- predicted %>%
+        mit_plot <- data %>% 
             ggplot(aes(x, y)) +
             {
                 if (band == TRUE)
-                    geom_ribbon(aes(
-                        y = Estimate,
-                        ymin = Q2.5,
-                        ymax = Q97.5
-                    ),
-                    alpha = 0.05)
+                    geom_ribbon(data = pred_band,
+                                aes(y = Estimate,
+                                    ymin = Q2.5,
+                                    ymax = Q97.5),
+                                alpha = 0.05)
             } +
+            # fitted line
+            geom_line(data = pred_y, aes(x, pred),
+                      color = red) +
             geom_vline(xintercept = cstv,
                        alpha = 1,
                        color = blue) +
-            geom_hline(yintercept = new_asym,
+            geom_hline(yintercept = ry_cstv,
                        alpha = 0.2) +
-            geom_line(
-                stat="smooth",
-                method = "nls",
-                formula = y ~ SSasymp(x, a, b, c),
-                method.args = list(start = as.list(coef(corr_model))),
-                se = FALSE,
-                color = "#CC0000"
-            ) +
             geom_point(size = 3, alpha = 0.5) +
             geom_rug(alpha = 0.2, length = unit(2, "pt")) +
             scale_y_continuous(limits = c(0, maxy),
                                breaks = seq(0, maxy * 2, 10)) +
             annotate(
                 "text",
-                label = paste("CSTV =", round(cstv,0), "ppm"),
+                label = paste("CSTV =", round(cstv,1), "ppm"),
                 x = cstv,
                 y = 0,
                 angle = 90,
@@ -202,9 +197,9 @@ mitscherlich <- function(data,
                 "text",
                 alpha = 0.5,
                 label = paste0(percent_of_max, "% of asymptote = ",
-                               round(new_asym,1), "% RY"),
+                               round(ry_cstv,1), "% RY"),
                 x = maxx,
-                y = new_asym,
+                y = ry_cstv,
                 vjust = 1.5,
                 hjust = 1
             )+
@@ -212,8 +207,8 @@ mitscherlich <- function(data,
                 "text",
                 alpha = 0.5,
                 label = paste0(
-                    #"y = ", equation,
-                    "AIC = ", AIC,
+                    "y = ", equation,
+                    "\nAIC = ", AIC,
                     "\nRMSE = ", rmse,
                     "\nR-squared = ", rsquared
                     #"\nCSTV at 95 and 90% RY = ", cstv_95ry," & ", cstv_90ry, " ppm"
