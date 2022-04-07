@@ -59,16 +59,26 @@ lin_plateau <- function(data,
     }
     
     minx <- min(data$x)
+    meanx <- mean(data$x)
     maxx <- max(data$x)
     miny <- min(data$y)
     maxy <- max(data$y)
     
     # build the model/fit =====
-    nls_model <- try(nls(y ~ SSlinp(x, b0, b1, jp), data = data))
+    # starting values
+    sv <- list(b0 = miny, b1 = 1, jp = meanx)
+    
+    nls_model <- try(
+        nls(y ~ SSlinp(x, b0, b1, jp),
+            data = data, start = sv)
+        )
     
     if (inherits(nls_model, "try-error")) {
-        corr_model <-
-            try(minpack.lm::nlsLM(y ~ SSlinp(x, b0, b1, jp), data = data))
+        corr_model <- try(
+            minpack.lm::nlsLM(y ~ SSlinp(x, b0, b1, jp),
+                              data = data,
+                              start = sv)
+            )
     } else {
          corr_model <- nls_model
     }
