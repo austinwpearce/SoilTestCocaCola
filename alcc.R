@@ -173,7 +173,8 @@ alcc <- function(data,
                   sufficiency = sufficiency,
                   confidence = confidence) %>% 
         mutate(remove2x = "TRUE",
-               cstv_100 = cstv_100)
+               cstv_100 = cstv_100,
+               cstv90_2x = cstv90_2x)
     
     if(summary == TRUE) {
         return(
@@ -188,7 +189,8 @@ alcc <- function(data,
                     pvalue,
                     pearson,
                     remove2x,
-                    cstv_100) %>% 
+                    cstv_100,
+                    cstv90_2x) %>% 
                 distinct(across(everything()))
         )
     } else {

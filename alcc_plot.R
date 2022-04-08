@@ -103,6 +103,7 @@ alcc_plot <- function(data,
     cstv <- unique(output$cstv)
     cstv <- if_else(cstv < 10, round(cstv, 1), round(cstv, 0))
     cstv_100 <- unique(output$cstv_100)
+    cstv90_2x <- unique(output$cstv90_2x)
     
     lower_cl <- (unique(output$lower_cl))
     lower_cl <- if_else(lower_cl < 10, round(lower_cl, 1), round(lower_cl, 0))
