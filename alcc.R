@@ -162,7 +162,7 @@ alcc <- function(data,
             confidence = confidence
         )
     
-    cstv90_2x <<- unique(stage_2$cstv) * 2
+    cstv90_2x <- unique(stage_2$cstv) * 2
     
     stage_3 <- data %>%
         filter(case_when(remove2x == TRUE ~ !!x <= cstv90_2x,
@@ -172,7 +172,8 @@ alcc <- function(data,
                   sma = sma,
                   sufficiency = sufficiency,
                   confidence = confidence) %>% 
-        mutate(remove2x = "TRUE")
+        mutate(remove2x = "TRUE",
+               cstv_100 = cstv_100)
     
     if(summary == TRUE) {
         return(
@@ -186,7 +187,8 @@ alcc <- function(data,
                     confidence,
                     pvalue,
                     pearson,
-                    remove2x) %>% 
+                    remove2x,
+                    cstv_100) %>% 
                 distinct(across(everything()))
         )
     } else {
