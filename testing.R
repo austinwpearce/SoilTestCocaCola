@@ -1,14 +1,16 @@
 # This testing file includes a soil test correlation dataset from `agridat`
 # for testing the lin_plateau, quad_plateau, mitscherlich, and alcc functions.
 
-library(tidyverse)
+library(devtools)
+library(stringr)
+library(dplyr)
 # these packages are for completing code examples after the alcc stuff
 library(agridat) # for obtaining a testing dataset
 library(nlraa) # for self-starting functions and predicted intervals
 library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
 library(modelr) # for the r-squared and rmse
-library(devtools)
+
 
 # Load correlation functions
 base_url <- "https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/"
@@ -24,35 +26,6 @@ source_url(str_c(base_url, "mitscherlich.R"))
 # ALCC function
 source_url(str_c(base_url, "alcc.R"))
 source_url(str_c(base_url, "alcc_plot.R"))
-
-
-
-# =============================================================================
-# small n
-crop <- tibble(x = seq(1, 4, 0.5),
-               y = c(20, 70, 90, 95, 98, 92, 100))
-
-lin_plateau(crop, plot = TRUE)
-quad_plateau(crop, plot = TRUE)
-mitscherlich(crop, plot = TRUE)
-mitscherlich(crop, plot = TRUE, band = TRUE)
-alcc_plot(crop, x, y, sufficiency = 3.5)
-
-nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))
-nls(y ~ SSasymp(x, a, b, c), data = crop)
-
-# relative cotton yield vs soil test potassium
-head(agridat::cate.potassium)
-crop <- agridat::cate.potassium %>% 
-    rename(x = potassium,
-           y = yield)
-
-lin_plateau(crop, plot = TRUE)
-quad_plateau(crop, plot = TRUE)
-#AgroReg::quadratic.plateau(trat = crop$x, resp = crop$y)
-
-# While the plotting function could possibly be combined with the previous
-# function, keeping them separate is simpler
 
 # =============================================================================
 cotton <- tibble(stk = agridat::cate.potassium$potassium,
@@ -72,6 +45,13 @@ quad_plateau(cotton, stk, ry)
 quad_plateau(stv =  cotton$stk, ry = cotton$ry)
 quad_plateau(cotton, stk, ry, plot = TRUE)
 quad_plateau(cotton, stk, ry, plot = TRUE, band = TRUE)
+
+mitscherlich(cotton)
+# must specify the ST and RY columns
+mitscherlich(cotton, stk, ry)
+mitscherlich(stv =  cotton$stk, ry = cotton$ry)
+mitscherlich(cotton, stk, ry, plot = TRUE)
+mitscherlich(cotton, stk, ry, plot = TRUE, band = TRUE)
 
 cotton %>% 
     mutate(x = stk, y = ry) %>% 
@@ -128,3 +108,34 @@ multiple %>%
 
 #### All in one ####
 all_in_one(cotton, stk, ry)
+
+
+# =============================================================================
+# small n
+crop <- tibble(x = seq(0, 50, 5),
+               y = quadp3xs(x, 0, 10, 10) + rnorm(11, 0, 4))
+
+crop <- tibble(x = seq(5, 50, 10),
+               y = c(20, 70, 90, 95, 98, 92, 100))
+
+lin_plateau(crop, plot = TRUE)
+quad_plateau(crop, plot = TRUE)
+mitscherlich(crop, x, y, plot = TRUE)
+mitscherlich(crop, plot = TRUE, band = TRUE)
+alcc_plot(crop, x, y, sufficiency = 3.5)
+
+nls(y ~ mb(x, asym, b, c), data = crop, start = c(asym = 3.5, b = 7, c = -0.9))
+nls(y ~ SSasymp(x, a, b, c), data = crop)
+
+# relative cotton yield vs soil test potassium
+head(agridat::cate.potassium)
+crop <- agridat::cate.potassium %>% 
+    rename(x = potassium,
+           y = yield)
+
+lin_plateau(crop, plot = TRUE)
+quad_plateau(crop, plot = TRUE)
+#AgroReg::quadratic.plateau(trat = crop$x, resp = crop$y)
+
+# While the plotting function could possibly be combined with the previous
+# function, keeping them separate is simpler

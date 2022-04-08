@@ -40,7 +40,6 @@ black <- "#000000"
 # b2 = quadratic term = -0.5 * b1 / cx
 # cx = critical X value = join point = Critical Soil Test Value (CSTV) 
 # cx = -0.5 * b1 / b2
-# quad_plateau function
 
 quad_plateau <- function(data = NULL,
                          stv,
@@ -76,9 +75,9 @@ quad_plateau <- function(data = NULL,
     maxy <- max(corr_data$y)
     
     # build the model/fit =====
-    # starting values (sv)
     # even though the functions are selfStarting, providing starting values
     # increases the chance the SS functions converge on something reasonable
+    # starting values (sv)
     sv <- list(b0 = miny, b1 = 1, cx = meanx)
     
     nls_model <- try(
@@ -113,8 +112,8 @@ quad_plateau <- function(data = NULL,
     b0 <- coef(corr_model)[[1]]
     b1 <- coef(corr_model)[[2]]
     cx <- coef(corr_model)[[3]]
+    # derived values
     b2 <- -0.5 * b1 / cx
-
     plateau <- b0 + (b1 * cx) + (b2 * cx * cx)
     cstv <- round(cx, 0)
     
@@ -177,8 +176,8 @@ quad_plateau <- function(data = NULL,
                     newdata = corr_data,
                     interval = "confidence",
                     level = 0.95) %>%
-                    dplyr::as_tibble() %>% 
-                    dplyr::bind_cols(corr_data)
+                dplyr::as_tibble() %>%
+                dplyr::bind_cols(corr_data)
         }
         
         # To get fitted line from corr_model
