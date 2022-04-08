@@ -150,7 +150,7 @@ alcc <- function(data,
             confidence = confidence
         )
     
-    cstv_100 <<- unique(stage_1$cstv)
+    cstv_100 <- unique(stage_1$cstv)
     
     stage_2 <- data %>%
         filter(!!x <= cstv_100) %>% 

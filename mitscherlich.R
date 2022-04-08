@@ -154,8 +154,7 @@ mitscherlich <- function(data,
                 nlraa::predict_nls(corr_model,
                                    newdata = data,
                                    interval = "confidence") %>%
-                as_tibble() %>%
-                bind_cols(data)
+                as_tibble()
         }
         
         pred_y <- tibble(x = seq(minx, maxx, 0.1)) %>%

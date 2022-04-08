@@ -59,9 +59,12 @@ cotton <- tibble(stk = agridat::cate.potassium$potassium,
                  ry = agridat::cate.potassium$yield, 
                  dataset = "cotton")
 
-cotton %>% 
-    mutate(x = stk, y = ry) %>% 
-    lin_plateau(plot = TRUE)
+lin_plateau(cotton)
+# must specify the ST and RY columns
+lin_plateau(cotton, stk, ry)
+lin_plateau(stv =  cotton$stk, ry = cotton$ry)
+
+lin_plateau(cotton, stk, ry, plot = TRUE)
 
 cotton %>% 
     mutate(x = stk, y = ry) %>% 
@@ -119,3 +122,6 @@ multiple %>%
 
 
 ##### CREATE simplified results table for export #####
+
+#### All in one ####
+all_in_one(cotton, stk, ry)
