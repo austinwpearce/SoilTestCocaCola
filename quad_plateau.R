@@ -1,26 +1,13 @@
-# package libraries needed
-library(tidyverse) # a suite of packages for wrangling and plotting
-library(nlraa) # for self-starting functions and predicted intervals
-library(minpack.lm) # for nlsLM, a robust backup to nls
-library(nlstools) # for residuals plots
-library(modelr) # for the r-squared and rmse
-
-# For now, everything is written in terms of x and y
-# So prior to using this function, the columns for soil test value and RY, for # example, will need to be renamed to x and y
-# for example: %>% rename(x = stv, y = ry) %>%
-
-# =============================================================================
-
-#' The following function fits a quadratic plateau model to soil test
-#' correlation XY data and provides results in a table format or as a plot
-#'
-#' Last updated: 2022-02-17
-#'
-#' This function is essentially a wrapper that uses other packages' functions
-#' Won't just work in base R
+#' The following function fits a quadratic plateau model
+#' It is designed for soil test correlation data 
+#' This function can provide results in a table format or as a plot
+#' Author: Austin Pearce
+#' Last updated: 2022-04-08
 #'
 #' @name quad_plateau
 #' @param data a data frame with XY data
+#' @param stv column for soil test values
+#' @param ry column for relative yield
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param band choose whether the correlation plot displays confidence band
@@ -29,84 +16,118 @@ library(modelr) # for the r-squared and rmse
 #' quadratic portion at certain Y value
 #' @export
 
+# packages/dependencies needed
+library(dplyr) # a suite of packages for wrangling and plotting
+library(rlang) # evaluate column names for STV and RY (tip to AC)
+library(nlraa) # for self-starting functions and predicted intervals
+library(minpack.lm) # for nlsLM, a robust backup to nls
+library(nlstools) # for residuals plots
+library(modelr) # for the r-squared and rmse
+library(ggplot2) # plots
+
+# Colors for plot later on
+
 red <- "#CE1141"
 gold <- "#EAAA00"
 blue <- "#13274F"
 black <- "#000000"
-#' The QP model and parameters
-#' y = b0 + b1x + b2x^2
-#' b0 = intercept
-#' b1 = slope
-#' b2 = quadratic term
-#' jp = join point = critical concentration = -0.5 * b1 / b2
 
 # =============================================================================
+# The QP model and parameters
+# y = if{x <= cx, b0 + b1x + b2x^2; b0 + b1*cx + b2*cx^2}
+# b0 = intercept
+# b1 = slope
+# b2 = quadratic term = -0.5 * b1 / cx
+# cx = critical X value = join point = Critical Soil Test Value (CSTV) 
+# cx = -0.5 * b1 / b2
 # quad_plateau function
 
-quad_plateau <- function(data,
+quad_plateau <- function(data = NULL,
+                         stv,
+                         ry,
                          resid = FALSE,
                          plot = FALSE,
                          band = FALSE,
                          percent_of_max = 95) {
     
-    if (nrow(data) < 4) {
-        stop("Too few distinct input values to fit QP. Try at least 4.")
+    if (missing(stv)) {
+        stop("Please specify the variable name for soil test concentrations using the `stv` argument")
     }
     
-    if ("x" %in% colnames(data) == FALSE) {
-        stop("Rename the explanatory variable 'x'")
+    if (missing(ry)) {
+        stop("Please specify the variable name for relative yields using the `ry` argmuent")
     }
     
-    if ("y" %in% colnames(data) == FALSE) {
-        stop("Rename the response variable 'y'")
+    # Re-define x and y from STV and RY (tip to AC)
+    x <- rlang::eval_tidy(data = data, rlang::quo({{stv}}) )
+    
+    y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
+    
+    corr_data <- dplyr::tibble(x = x, y = y)
+    
+    if (nrow(corr_data) < 4) {
+        stop("Too few distinct input values to fit LP. Try at least 4.")
     }
     
-    minx <- min(data$x)
-    maxx <- max(data$x)
-    miny <- min(data$y)
-    maxy <- max(data$y)
+    minx <- min(corr_data$x)
+    meanx <- mean(corr_data$x)
+    maxx <- max(corr_data$x)
+    miny <- min(corr_data$y)
+    maxy <- max(corr_data$y)
     
-    # uses the fit_qp function defined earlier
-    nls_model <- try(nls(y ~ SSquadp3xs(x, b0, b1, jp), data = data))
+    # build the model/fit =====
+    # starting values (sv)
+    # even though the functions are selfStarting, providing starting values
+    # increases the chance the SS functions converge on something reasonable
+    sv <- list(b0 = miny, b1 = 1, cx = meanx)
+    
+    nls_model <- try(
+        nls(y ~ SSquadp3xs(x, b0, b1, cx),
+            data = corr_data,
+            start = sv))
+    # SSquadp3() also an option, especially if setting bounds on b2 param
     
     if (inherits(nls_model, "try-error")) {
-        corr_model <-
-            try(minpack.lm::nlsLM(y ~ SSquadp3xs(x, b0, b1, jp), data = data))
+        corr_model <- try(
+            minpack.lm::nlsLM(y ~ SSquadp3xs(x, b0, b1, cx),
+                              data = corr_data,
+                              start = sv))
     } else {
         corr_model <- nls_model
     }
     
     if (inherits(corr_model, "try-error")) {
         stop("QP model could not be fit with nls or nlsLM.
-             Try something else.")
+             Consider another model.")
     } else {
         corr_model <- corr_model
     }
     
     # How did the model do overall?
-    AIC      <- round(AIC(corr_model), 0)
-    rsquared <- round(modelr::rsquare(corr_model, data), 2)
-    rmse     <- round(modelr::rmse(corr_model, data), 2)
+    AIC      <- nlraa::IC_tab(corr_model)[3] %>% round()
+    AICc     <- nlraa::IC_tab(corr_model)[4] %>% round()
+    rmse     <- round(modelr::rmse(corr_model, corr_data), 2)
+    rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
     
     # get model coefficients
     b0 <- coef(corr_model)[[1]]
     b1 <- coef(corr_model)[[2]]
-    # join point of segmented regression = critical soil test value
-    jp <- coef(corr_model)[[3]]
-    join_point <- round(jp, 0)
-    b2 <- -0.5 * b1 / jp
-    
-    plateau <- round(b0 + (b1 * jp) + (b2 * jp * jp), 1)
+    cx <- coef(corr_model)[[3]]
+    b2 <- -0.5 * b1 / cx
+
+    plateau <- b0 + (b1 * cx) + (b2 * cx * cx)
+    cstv <- round(cx, 0)
     
     equation <- paste0(round(b0, 1), " + ",
                        round(b1, 2), "x + ",
                        round(b2, 3), "x^2")
     
     # CSTV at defined % of max/plateau
+    # To find an X value at a given Y less than predicted plateau
     adjust_cstv <- function(b0, b1, b2) {
-        jp <- -0.5 * b1 / b2
+        cx <- -0.5 * b1 / b2
         newplateau <-
-            (b0 + (b1 * jp) + (b2 * jp * jp)) * percent_of_max / 100
+            (b0 + (b1 * cx) + (b2 * cx * cx)) * percent_of_max / 100
         newb0 <- b0 - newplateau
         discriminant <- (b1 ^ 2) - (4 * newb0 * b2)
         
@@ -129,13 +150,14 @@ quad_plateau <- function(data,
                 plot(nlsResiduals(corr_model), which = 0)
         }
         tibble(
-            intercept = b0,
-            slope = b1,
-            curve = b2,
+            intercept = round(b0, 2),
+            slope = round(b1, 2),
+            curve = round(b2, 4),
             equation,
-            join_point,
+            cstv,
             plateau = round(plateau, 1),
             AIC,
+            AICc,
             rmse,
             rsquared,
             adjusted_cstv = round(cstv_adj, 0),
@@ -147,45 +169,62 @@ quad_plateau <- function(data,
             if (resid == TRUE)
                 plot(nlsResiduals(corr_model), which = 0)
         }
-        predicted <- nlraa::predict2_nls(corr_model,
-                                         newdata = data,
-                                         interval = "confidence") %>%
-            as_tibble() %>%
-            bind_cols(data)
         
-        # ggplot of data
-        qp_plot <- predicted %>%
+        {
+            if (band == TRUE)
+                conf_band <- nlraa::predict2_nls(
+                    object = corr_model,
+                    newdata = corr_data,
+                    interval = "confidence",
+                    level = 0.95) %>%
+                    dplyr::as_tibble() %>% 
+                    dplyr::bind_cols(corr_data)
+        }
+        
+        # To get fitted line from corr_model
+        pred_y <- dplyr::tibble(x = seq(minx, maxx, 0.1)) %>%
+            modelr::gather_predictions(corr_model)
+        
+        # ggplot of correlation
+        qp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
             {
                 if (band == TRUE)
-                    geom_ribbon(aes(
-                        y = Estimate,
-                        ymin = Q2.5,
-                        ymax = Q97.5
-                    ),
-                    alpha = 0.05)
+                    geom_ribbon(data = conf_band,
+                                aes(x = x,
+                                    y = Estimate,
+                                    ymin = Q2.5,
+                                    ymax = Q97.5),
+                                alpha = 0.1)
             } +
-            geom_vline(xintercept = jp,
+            geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
             geom_hline(yintercept = plateau,
                        alpha = 0.2) +
-            geom_line(
-                stat = "smooth",
-                method = "nls",
-                formula = y ~ SSquadp3xs(x, b0, b1, jp),
-                method.args = list(start = as.list(coef(corr_model))),
-                se = FALSE,
-                color = "#CC0000"
-            ) +
-            geom_point(size = 3, alpha = 0.5) +
+            # fitted line
+            geom_line(data = pred_y,
+                      aes(x, pred),
+                      color = red) +
+            geom_point(size = 2, alpha = 0.5) +
             geom_rug(alpha = 0.2, length = unit(2, "pt")) +
             scale_y_continuous(limits = c(0, maxy),
                                breaks = seq(0, maxy * 2, 10)) +
+            scale_x_continuous(
+                breaks = seq(0, maxx * 2, by = if_else(
+                    condition = maxx >= 300,
+                    true = 30,
+                    false = if_else(
+                        condition = maxx >= 100,
+                        true = 20,
+                        false = if_else(
+                            condition = maxx >= 50,
+                            true = 10,
+                            false = 5))))) +
             annotate(
                 "text",
-                label = paste("CSTV =", join_point, "ppm"),
-                x = join_point,
+                label = paste("CSTV =", cstv, "ppm"),
+                x = cx,
                 y = 0,
                 angle = 90,
                 hjust = 0,
@@ -194,7 +233,7 @@ quad_plateau <- function(data,
             ) +
             annotate(
                 "text",
-                label = paste0("Plateau = ", plateau, "%"),
+                label = paste0("Plateau = ", round(plateau, 1), "%"),
                 x = maxx,
                 y = plateau,
                 alpha = 0.5,
@@ -204,16 +243,10 @@ quad_plateau <- function(data,
             annotate(
                 "text",
                 alpha = 0.5,
-                label = paste0(
-                    "y = ",
-                    equation,
-                    "\nAIC = ",
-                    AIC,
-                    "\nRMSE = ",
-                    rmse,
-                    "\nR-squared = ",
-                    rsquared
-                ),
+                label = paste0("y = ", equation,
+                               "\nAIC, AICc = ", AIC, ", ",AICc,
+                               "\nRMSE = ", rmse,
+                               "\nR-squared = ", rsquared),
                 x = maxx,
                 y = 0,
                 vjust = 0,
@@ -222,7 +255,7 @@ quad_plateau <- function(data,
             labs(
                 x = "Soil test value (mg/kg)",
                 y = "Relative yield (%)",
-                caption = paste("Each point is a site. n =", nrow(data))
+                caption = paste("Each point is a site. n =", nrow(corr_data))
             )
         
         return(qp_plot)
@@ -279,44 +312,44 @@ theme_set(
 
 # =============================================================================
 # other functions for fitting nls model only
-
-qp <- function(x, b0, b1, jp) {
-    b2 <- -0.5 * b1 / jp
-    if_else(
-        condition = x < jp,
-        true  = b0 + (b1 * x) + (b2 * x * x),
-        false = b0 + (b1 * jp) + (b2 * jp * jp)
-    )
-}
-
-fit_qp <- function(data) {
-    start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
-    # nls model
-    fit <- nlsLM(
-        formula = y ~ qp(x, b0, b1, jp),
-        data = data,
-        start = list(
-            b0 = start$coef[[1]],
-            b1 = start$coef[[2]],
-            jp = mean(data$x)
-        ),
-        control = nls.lm.control(maxiter = 500)
-    )
-    return(fit)
-}
-
-fit_SSquadp3xs <- function(data) {
-    # nlraa model
-    fit <- nlsLM(
-        formula = y ~ SSquadp3xs(x, b0, b1, jp),
-        data = data,
-        control = nls.lm.control(maxiter = 500)
-        # upper = c(b0 = max(data$y),
-        #           b1 = 1000,
-        #           b2 = 0),
-        # lower = c(b0 = -1000,
-        #           b1 = 0,
-        #           b2 = -Inf)
-    )
-    return(fit)
-}
+# 
+# qp <- function(x, b0, b1, cx) {
+#     b2 <- -0.5 * b1 / cx
+#     if_else(
+#         condition = x < cx,
+#         true  = b0 + (b1 * x) + (b2 * x * x),
+#         false = b0 + (b1 * cx) + (b2 * cx * cx)
+#     )
+# }
+# 
+# fit_qp <- function(data) {
+#     start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
+#     # nls model
+#     fit <- nlsLM(
+#         formula = y ~ qp(x, b0, b1, cx),
+#         data = data,
+#         start = list(
+#             b0 = start$coef[[1]],
+#             b1 = start$coef[[2]],
+#             cx = mean(data$x)
+#         ),
+#         control = nls.lm.control(maxiter = 500)
+#     )
+#     return(fit)
+# }
+# 
+# fit_SSquadp3xs <- function(data) {
+#     # nlraa model
+#     fit <- nlsLM(
+#         formula = y ~ SSquadp3xs(x, b0, b1, cx),
+#         data = data,
+#         control = nls.lm.control(maxiter = 500)
+#         # upper = c(b0 = max(data$y),
+#         #           b1 = 1000,
+#         #           b2 = 0),
+#         # lower = c(b0 = -1000,
+#         #           b1 = 0,
+#         #           b2 = -Inf)
+#     )
+#     return(fit)
+# }

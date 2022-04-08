@@ -2,10 +2,12 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-07
+#' Last updated: 2022-04-08
 #'
 #' @name lin_plateau
 #' @param data a data frame with XY data
+#' @param stv column for soil test values
+#' @param ry column for relative yield
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param band choose whether the correlation plot displays confidence band
@@ -19,7 +21,7 @@ library(nlraa) # for self-starting functions and predicted intervals
 library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
 library(modelr) # for the r-squared and rmse
-library(ggplot2)
+library(ggplot2) # plots
 
 # Colors for plot later on
 red <- "#CE1141"
@@ -29,7 +31,7 @@ black <- "#000000"
 
 # =============================================================================
 # Linear plateau model
-# y = if{x < cx, b0 + b1*x; b0 + b1 * cx}
+# y = if{x <= cx, b0 + b1x; b0 + b1 * cx}
 # b0 = intercept
 # b1 = slope
 # cx = critical X value = join point = Critical Soil Test Value (CSTV)
@@ -38,8 +40,8 @@ black <- "#000000"
 # lin_plateau function
 
 lin_plateau <- function(data = NULL,
-                        stv, # column for soil test values
-                        ry,  # column relative yield
+                        stv,
+                        ry,
                         resid = FALSE,
                         plot = FALSE,
                         band = FALSE) {
@@ -70,12 +72,15 @@ lin_plateau <- function(data = NULL,
     maxy <- max(corr_data$y)
     
     # build the model/fit =====
-    # starting values
+    # starting values (sv)
+    # even though the functions are selfStarting, providing starting values
+    # increases the chance the SS functions converge on something reasonable
     sv <- list(b0 = miny, b1 = 1, cx = meanx)
     
     nls_model <- try(
         nls(y ~ SSlinp(x, b0, b1, cx),
-            data = corr_data, start = sv)
+            data = corr_data,
+            start = sv)
         )
     
     if (inherits(nls_model, "try-error")) {
@@ -95,7 +100,7 @@ lin_plateau <- function(data = NULL,
         corr_model <- corr_model
     }
     
-    # Find p-value and pseudo R-squared
+    # How did the model do overall?
     AIC      <- nlraa::IC_tab(corr_model)[3] %>% round()
     AICc     <- nlraa::IC_tab(corr_model)[4] %>% round()
     rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
@@ -108,6 +113,7 @@ lin_plateau <- function(data = NULL,
     b0 <- coef(corr_model)[[1]]
     b1 <- coef(corr_model)[[2]]
     cx <- coef(corr_model)[[3]]
+    
     plateau <- b0 + b1 * cx
     cstv <- round(cx, 0)
     
@@ -123,7 +129,7 @@ lin_plateau <- function(data = NULL,
     #     false = NULL
     # )
     
-    # makes an exact line rather than relying on predictions
+    # makes an exact line with clean bend rather than relying on predictions
     lp_line <- dplyr::tibble(x = c(minx, cx, maxx),
                              y = c(b0 + b1 * minx, plateau, plateau))
     
@@ -162,26 +168,22 @@ lin_plateau <- function(data = NULL,
         
         {
             if (band == TRUE)
-                corr_pred <- dplyr::tibble(x = seq(minx, maxx, 10))
-                pred_band <- nlraa::predict2_nls(
-                    object = corr_model,
-                    newdata = corr_pred,
-                    interval = "confidence",
-                    level = 0.95) %>%
-                    as_tibble() %>% 
-                    bind_cols(corr_pred)
+                # confidence band based on delta method
+                conf_band <- nlraa::predict2_nls(
+                        object = corr_model,
+                        newdata = corr_data,
+                        interval = "confidence",
+                        level = 0.95) %>%
+                        dplyr::as_tibble() %>% 
+                        dplyr::bind_cols(corr_data)
         }
         
-        # Alternative way to get model predictions for the fitted line
-        # but the lp_line is cleaner
-        # pred_y <- tibble(x = seq(minx, maxx, 0.1)) %>%
-        #     modelr::gather_predictions(corr_model)
-        
+        ## ggplot of correlation
         lp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
             {
                 if (band == TRUE)
-                    geom_ribbon(data = pred_band,
+                    geom_ribbon(data = conf_band,
                                 aes(x = x,
                                     y = Estimate,
                                     ymin = Q2.5,
@@ -252,23 +254,73 @@ lin_plateau <- function(data = NULL,
 }
 
 
-fit_SSlinp <- function(data) {
-    # nlraa model
-    fit <- nlsLM(
-        formula = y ~ SSlinp(x, b0, b1, cx),
-        data = data,
-        control = nls.lm.control(maxiter = 500),
-        upper = c(
-            b0 = max(data$y),
-            b1 = 10000,
-            cx = max(data$x)
-        ),
-        lower = c(
-            b0 = -10000,
-            b1 = 0,
-            cx = min(data$x)
+# =============================================================================
+# preferred theme for ggplot
+
+theme_set(
+    theme_minimal(base_size = 14) +
+        theme(
+            plot.background = NULL,
+            plot.margin = margin(
+                t = 2,
+                r = 10,
+                b = 2,
+                l = 2,
+                unit = "pt"
+            ),
+            panel.grid = element_line(color = "#F4F4F4"),
+            panel.spacing = unit(2, "lines"),
+            panel.border = element_blank(),
+            axis.line = element_blank(),
+            axis.ticks = element_blank(),
+            axis.title.y = element_text(
+                hjust = 1,
+                margin = margin(
+                    t = 0,
+                    r = 10,
+                    b = 0,
+                    l = 0,
+                    unit = "pt"
+                )
+            ),
+            axis.title.x = element_text(
+                hjust = 0,
+                margin = margin(
+                    t = 10,
+                    r = 0,
+                    b = 0,
+                    l = 0,
+                    unit = "pt"
+                )
+            ),
+            axis.text = element_text(),
+            legend.title.align = 0,
+            legend.key.height = unit(x = 5, units = "mm"),
+            legend.justification = c(1, 1)
+            #legend.position = c(1, 1)
         )
-    )
+)
+
+# =============================================================================
+# other function for fitting nls model only
+# 
+# fit_SSlinp <- function(data) {
+#     # nlraa model
+#     fit <- nlsLM(
+#         formula = y ~ SSlinp(x, b0, b1, cx),
+#         data = data,
+#         control = nls.lm.control(maxiter = 500),
+#         upper = c(
+#             b0 = max(data$y),
+#             b1 = 10000,
+#             cx = max(data$x)
+#         ),
+#         lower = c(
+#             b0 = -10000,
+#             b1 = 0,
+#             cx = min(data$x)
+#         )
+#     )
     
     return(fit)
 }

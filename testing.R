@@ -63,12 +63,15 @@ lin_plateau(cotton)
 # must specify the ST and RY columns
 lin_plateau(cotton, stk, ry)
 lin_plateau(stv =  cotton$stk, ry = cotton$ry)
-
 lin_plateau(cotton, stk, ry, plot = TRUE)
+lin_plateau(cotton, stk, ry, plot = TRUE, band = TRUE)
 
-cotton %>% 
-    mutate(x = stk, y = ry) %>% 
-    quad_plateau(plot = TRUE)
+quad_plateau(cotton)
+# must specify the ST and RY columns
+quad_plateau(cotton, stk, ry)
+quad_plateau(stv =  cotton$stk, ry = cotton$ry)
+quad_plateau(cotton, stk, ry, plot = TRUE)
+quad_plateau(cotton, stk, ry, plot = TRUE, band = TRUE)
 
 cotton %>% 
     mutate(x = stk, y = ry) %>% 
