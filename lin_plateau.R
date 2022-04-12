@@ -80,7 +80,8 @@ lin_plateau <- function(data = NULL,
     nls_model <- try(
         nls(y ~ SSlinp(x, b0, b1, cx),
             data = corr_data,
-            start = sv)
+            start = sv),
+        silent = TRUE
         )
     
     if (inherits(nls_model, "try-error")) {
