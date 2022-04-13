@@ -104,7 +104,7 @@ mitscherlich <- function(data = NULL,
             b = if_else(force_origin == TRUE, 0, -Inf),
             c = -Inf
         )
-    )
+    ), silent = TRUE
     )
     
     if (inherits(corr_model, "try-error")) {
