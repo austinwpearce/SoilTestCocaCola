@@ -53,6 +53,7 @@ mitscherlich <- function(data = NULL,
                          percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
+                         extrapolate = FALSE,
                          band = FALSE) {
     
     if (missing(stv)) {
@@ -76,6 +77,7 @@ mitscherlich <- function(data = NULL,
     
     minx <- min(corr_data$x)
     maxx <- max(corr_data$x)
+    rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
     start_c <- -(maxx - minx) / (maxy - miny)
@@ -166,7 +168,9 @@ mitscherlich <- function(data = NULL,
         }
         
         # To get fitted line from corr_model
-        pred_y <- dplyr::tibble(x = seq(minx, maxx, 0.1)) %>%
+        pred_y <- dplyr::tibble(x = seq(
+            from = if_else(extrapolate == TRUE, 0, minx),
+            to = maxx, by = 0.1)) %>%
             modelr::gather_predictions(corr_model)
         
         # ggplot of correlation
@@ -196,15 +200,15 @@ mitscherlich <- function(data = NULL,
                                breaks = seq(0, maxy * 2, 10)) +
             scale_x_continuous(
                 breaks = seq(0, maxx * 2, by = if_else(
-                    condition = maxx >= 300,
-                    true = 30,
+                    condition = rangex >= 200,
+                    true = 20,
                     false = if_else(
-                        condition = maxx >= 100,
-                        true = 20,
+                        condition = rangex >= 100,
+                        true = 10,
                         false = if_else(
-                            condition = maxx >= 50,
-                            true = 10,
-                            false = 5))))) +
+                            condition = rangex >= 50,
+                            true = 5,
+                            false = 2))))) +
             annotate(
                 "text",
                 label = paste("CSTV =", cstv, "ppm"),

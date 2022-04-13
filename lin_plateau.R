@@ -44,6 +44,7 @@ lin_plateau <- function(data = NULL,
                         ry,
                         resid = FALSE,
                         plot = FALSE,
+                        extrapolate = FALSE,
                         band = FALSE) {
     
     if (missing(stv)) {
@@ -68,6 +69,7 @@ lin_plateau <- function(data = NULL,
     minx <- min(corr_data$x)
     meanx <- mean(corr_data$x)
     maxx <- max(corr_data$x)
+    rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
     
@@ -131,8 +133,9 @@ lin_plateau <- function(data = NULL,
     # )
     
     # makes an exact line with clean bend rather than relying on predictions
-    lp_line <- dplyr::tibble(x = c(minx, cx, maxx),
-                             y = c(b0 + b1 * minx, plateau, plateau))
+    lp_line <- dplyr::tibble(
+        x = c(if_else(extrapolate == TRUE, 0, minx), cx, maxx),
+        y = c(if_else(extrapolate == TRUE, b0, b0 + b1 * minx), plateau, plateau))
     
     equation <- paste0(round(b0, 1), " + ",
                        round(b1, 2), "x")
@@ -209,15 +212,15 @@ lin_plateau <- function(data = NULL,
                 breaks = seq(0, maxy * 2, 10)) +
             scale_x_continuous(
                 breaks = seq(0, maxx * 2, by = if_else(
-                    condition = maxx >= 300,
-                    true = 30,
+                    condition = rangex >= 200,
+                    true = 20,
                     false = if_else(
-                        condition = maxx >= 100,
-                        true = 20,
+                        condition = rangex >= 100,
+                        true = 10,
                         false = if_else(
-                            condition = maxx >= 50,
-                            true = 10,
-                            false = 5))))) +
+                            condition = rangex >= 50,
+                            true = 5,
+                            false = 2))))) +
             annotate("text",
                      label = paste("CSTV =", cstv, "ppm"),
                      x = cstv,
