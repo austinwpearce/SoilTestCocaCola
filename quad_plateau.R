@@ -123,24 +123,9 @@ quad_plateau <- function(data = NULL,
     
     # CSTV at defined % of max/plateau
     # To find an X value at a given Y less than predicted plateau
-    adjust_cstv <- function(b0, b1, b2) {
-        cx <- -0.5 * b1 / b2
-        newplateau <-
-            (b0 + (b1 * cx) + (b2 * cx * cx)) * percent_of_max / 100
-        newb0 <- b0 - newplateau
-        discriminant <- (b1 ^ 2) - (4 * newb0 * b2)
-        
-        if (discriminant < 0) {
-            return(NA)
-        }
-        else if (discriminant > 0) {
-            cstv_adj <- (-b1 + sqrt(discriminant)) / (2 * b2)
-            
-            return(cstv_adj)
-        }
-    }
-    
-    cstv_adj <- adjust_cstv(b0, b1, b2)
+    newplateau <- plateau * percent_of_max / 100
+    discriminant <- (b1 ^ 2) - (4 * (b0 - newplateau) * b2)
+    cstv_pom <- (-b1 + sqrt(discriminant)) / (2 * b2)
     
     # Printouts
     if (plot == FALSE) {
@@ -159,7 +144,7 @@ quad_plateau <- function(data = NULL,
             AICc,
             rmse,
             rsquared,
-            adjusted_cstv = round(cstv_adj, 0),
+            cstv_pom = round(cstv_pom, 0),
             percent_of_max
         )
     } else {
