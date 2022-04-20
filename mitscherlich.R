@@ -80,7 +80,7 @@ mitscherlich <- function(data = NULL,
     rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
-    start_c <- -(maxx - minx) / (maxy - miny)
+    start_c <- -(maxx - minx) / (maxy - miny) / 2
     
     # build the model/fit ==================================================
     # even though the functions are selfStarting, providing starting values
@@ -98,13 +98,13 @@ mitscherlich <- function(data = NULL,
         upper = c(
             a = if_else(force_asym == TRUE, 100, Inf),
             b = if_else(force_origin == TRUE, 0, maxy),
-            c = 0), # force c to be negative is theoretical
+            c = -1e-7), # force c to be negative is theoretical
         lower = c(
             a = if_else(force_asym == TRUE, 100, miny),
             b = if_else(force_origin == TRUE, 0, -Inf),
             c = -Inf
         )
-    ), silent = TRUE
+    )
     )
     
     if (inherits(corr_model, "try-error")) {
