@@ -13,6 +13,7 @@
 #' quadratic portion at certain Y value
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
+#' @param extrapolate choose whether the fitted line goes through the origin
 #' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
 #' @export

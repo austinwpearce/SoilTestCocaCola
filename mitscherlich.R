@@ -9,12 +9,11 @@
 #' @param data a data frame with XY data
 #' @param stv column for soil test values
 #' @param ry column for relative yield
-#' @param force_asym
-#' @param force_origin
 #' @param percent_of_max if wanting to find the X value for a point along the
 #' quadratic portion at certain Y value
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
+#' @param extrapolate choose whether the fitted line extends to X = 0
 #' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
 #' @export
@@ -39,17 +38,23 @@ black <- "#000000"
 
 # "Mitscherlich" type model with three parameters
 # CSTV is evaluated at Y some % of asymptote
-# y = a + (a - b) * e^(-e^(c) * x)
+# y = a + (b - a) * e^(-e^(c) * x)
+# following the form used in SSasymp()
+# alternatively we could use the mit() function
 # a = horizontal asymptote (maximum yield potential)
 # b = intercept when soil test is 0
 # intercept is theoretical as soil never quite reaches 0
 # c = curvature, natural log of the rate constant (ought to be negative in nls)
 
+mit <- function(x, a, b, c) {
+    a + (b - a) * exp(-exp(c) * x)
+}
+
+# SSasymp uses this formula, so for those interested in not providing starting values, that could be an option
+
 mitscherlich <- function(data = NULL,
                          stv,
                          ry,
-                         force_asym = FALSE,
-                         force_origin = FALSE,
                          percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
@@ -64,10 +69,16 @@ mitscherlich <- function(data = NULL,
         stop("Please specify the variable name for relative yields using the `ry` argmuent")
     }
     
+    
+    
     # Re-define x and y from STV and RY (tip to AC)
     x <- rlang::eval_tidy(data = data, rlang::quo({{stv}}) )
     
     y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
+    
+    if (max(y) < 2) {
+        stop("Is the reponse variable on a percentage scale? If not, please multiply it by 100")
+    }
     
     corr_data <- dplyr::tibble(x = x, y = y)
     
@@ -80,32 +91,26 @@ mitscherlich <- function(data = NULL,
     rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
-    start_c <- -(maxx - minx) / (maxy - miny) / 2
+    start_c <- -(rangex) / (maxy - miny) / 2
+    
+    if (maxy < 2) {
+        stop("Please specify the variable name for relative yields using the `ry` argmuent")
+    }
     
     # build the model/fit ==================================================
     # even though the functions are selfStarting, providing starting values
     # increases the chance the SS functions converge on something reasonable
     # starting values shown are based on whether asymptote or origin are forced
     
-    corr_model <- try(nlsLM(
-        formula = y ~ SSasymp(x, a, b, c),
+    corr_model <- try(
+        nlsLM(
+        formula = y ~ mit(x, a, b, c),
         data = corr_data,
-        start = list(
-            a = if_else(force_asym == TRUE, 100, maxy),
-            b = if_else(force_origin == TRUE, 0, miny),
-            c = start_c
-        ),
-        upper = c(
-            a = if_else(force_asym == TRUE, 100, Inf),
-            b = if_else(force_origin == TRUE, 0, maxy),
-            c = -1e-7), # force c to be negative is theoretical
-        lower = c(
-            a = if_else(force_asym == TRUE, 100, miny),
-            b = if_else(force_origin == TRUE, 0, -Inf),
-            c = -Inf
+        start = list(a = maxy, b = miny, c = start_c),
+        upper = c(a = Inf, b = maxy, c = -1e-7), # force c to be negative is theoretical
+        lower = c(a = miny, b = -Inf, c = -100) # at c = -100 the line would almost be flat
         )
-    )
-    )
+        )
     
     if (inherits(corr_model, "try-error")) {
         stop("Mitscherlich model could not be fit. Consider another model.")
@@ -122,8 +127,8 @@ mitscherlich <- function(data = NULL,
     b <- coef(corr_model)[[2]]
     c <- exp(coef(corr_model)[[3]]) # equation based on natural log
     # derived values
-    ry_cstv <- a * percent_of_max / 100
-    cx <- log((ry_cstv - a) / (b - a)) / -c # cx = critical X
+    ry_pom <- a * percent_of_max / 100
+    cx <- log((ry_pom - a) / (b - a)) / -c # cx = critical X
     cstv <- round(cx, 0)
     
     # this equation is modified from original notation for c 
@@ -142,7 +147,7 @@ mitscherlich <- function(data = NULL,
             rate_constant = round(c, 2),
             equation,
             cstv,
-            ry_cstv = round(ry_cstv, 1),
+            ry_pom = round(ry_pom, 1),
             percent_of_max,
             AIC,
             AICc,
@@ -188,7 +193,7 @@ mitscherlich <- function(data = NULL,
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
-            geom_hline(yintercept = ry_cstv,
+            geom_hline(yintercept = ry_pom,
                        alpha = 0.2) +
             # fitted line
             geom_line(data = pred_y,
@@ -222,9 +227,9 @@ mitscherlich <- function(data = NULL,
             annotate(
                 "text",
                 label = paste0(percent_of_max, "% of asymptote = ",
-                               round(ry_cstv, 1), "% RY"),
+                               round(ry_pom, 1), "% RY"),
                 x = maxx,
-                y = ry_cstv,
+                y = ry_pom,
                 alpha = 0.5,
                 vjust = 1.5,
                 hjust = 1
@@ -248,25 +253,6 @@ mitscherlich <- function(data = NULL,
         return(mit_plot)
     }
     
-}
-
-# ==============================================================================
-mit <- function(x, a, b, c) {
-    a + (b - a) * exp(-exp(c) * x)
-}
-
-# Alternative is to use SSasym
-fit_mit <- function(data){
-    fit <- nlsLM(formula = y ~ mit(x, a, b, c),
-                 data = data,
-                 start = list(a = max(data$y),
-                              b = min(data$y),
-                              c = -1),
-                 control = nls.lm.control(maxiter = 500),
-                 upper = c(a = Inf, b = max(data$y), c = -1e-7),
-                 lower = c(a = min(data$y), b = -Inf, c = -Inf)
-    )
-    return(fit)
 }
 
 # =============================================================================
