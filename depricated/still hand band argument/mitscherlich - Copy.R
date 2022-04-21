@@ -3,9 +3,9 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-21
+#' Last updated: 2022-04-08
 #'
-#' @name mitscherlich_1000 asymptote = 100 and Y-intercept is 0, so "1000"
+#' @name mitscherlich
 #' @param data a data frame with XY data
 #' @param stv column for soil test values
 #' @param ry column for relative yield
@@ -13,7 +13,7 @@
 #' quadratic portion at certain Y value
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
-#' @param extrapolate choose whether the fitted line goes through the origin
+#' @param extrapolate choose whether the fitted line extends to X = 0
 #' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
 #' @export
@@ -38,18 +38,21 @@ black <- "#000000"
 
 # "Mitscherlich" type model with three parameters
 # CSTV is evaluated at Y some % of asymptote
-# following the form used in SSasymp()
 # y = a + (b - a) * e^(-e^(c) * x)
+# following the form used in SSasymp()
+# alternatively we could use the mit() function
 # a = horizontal asymptote (maximum yield potential)
 # b = intercept when soil test is 0
 # intercept is theoretical as soil never quite reaches 0
 # c = curvature, natural log of the rate constant (ought to be negative in nls)
 
-mit_1000 <- function(x, c) {
-    100 + (0 - 100) * exp(-exp(c) * x)
+mit <- function(x, a, b, c) {
+    a + (b - a) * exp(-exp(c) * x)
 }
 
-mitscherlich_1000 <- function(data = NULL,
+# SSasymp uses this formula, so for those interested in not providing starting values, that could be an option
+
+mitscherlich <- function(data = NULL,
                          stv,
                          ry,
                          percent_of_max = 95,
@@ -65,6 +68,8 @@ mitscherlich_1000 <- function(data = NULL,
     if (missing(ry)) {
         stop("Please specify the variable name for relative yields using the `ry` argmuent")
     }
+    
+    
     
     # Re-define x and y from STV and RY (tip to AC)
     x <- rlang::eval_tidy(data = data, rlang::quo({{stv}}) )
@@ -83,7 +88,7 @@ mitscherlich_1000 <- function(data = NULL,
         stop("Too few distinct input values to fit LP. Try at least 4.")
     }
     
-    minx <- min(corr_data$x)
+    minx <- min(corr_data$x) 
     maxx <- max(corr_data$x)
     rangex <- maxx - minx
     miny <- min(corr_data$y)
@@ -95,15 +100,18 @@ mitscherlich_1000 <- function(data = NULL,
     # increases the chance the SS functions converge on something reasonable
     # starting values shown are based on whether asymptote or origin are forced
     
-    corr_model <- try(nlsLM(
-        formula = y ~ mit_1000(x, c),
+    corr_model <- try(
+        nlsLM(
+        formula = y ~ SSasymp(x, a, b, c),
         data = corr_data,
-        start = list(c = start_c),
-        upper = c(c = -1e-7), # force c to be negative is theoretical
-        lower = c(c = -100)))
+        start = list(a = maxy, b = miny, c = start_c),
+        upper = c(a = Inf, b = maxy, c = -1e-7), # force c to be negative is theoretical
+        lower = c(a = miny, b = -Inf, c = -100) # at c = -100 the line would almost be flat
+        )
+        )
     
     if (inherits(corr_model, "try-error")) {
-        stop("Mitscherlich model with forced asymptote and intercept could not be fit. Consider another model.")
+        stop("Mitscherlich model could not be fit. Consider another model.")
     }
     
     # How did the model do overall?
@@ -113,11 +121,11 @@ mitscherlich_1000 <- function(data = NULL,
     rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
     
     # get model coefficients
-    a <- 100
-    b <- 0
-    c <- exp(coef(corr_model)[[1]]) # equation based on natural log
+    a <- coef(corr_model)[[1]]
+    b <- coef(corr_model)[[2]]
+    c <- exp(coef(corr_model)[[3]]) # equation based on natural log
     # derived values
-    ry_pom <- a * percent_of_max / 100 # pom = percent of max
+    ry_pom <- a * percent_of_max / 100
     cx <- log((ry_pom - a) / (b - a)) / -c # cx = critical X
     cstv <- round(cx, 0)
     
@@ -132,12 +140,12 @@ mitscherlich_1000 <- function(data = NULL,
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         tibble(
-            asymptote = a,
-            intercept = b,
+            asymptote = round(a, 1),
+            intercept = round(b, 2),
             rate_constant = round(c, 2),
             equation,
             cstv,
-            ry_cstv = round(ry_pom, 1),
+            ry_pom = round(ry_pom, 1),
             percent_of_max,
             AIC,
             AICc,

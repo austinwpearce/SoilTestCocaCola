@@ -2,7 +2,7 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-08
+#' Last updated: 2022-04-21
 #'
 #' @name lin_plateau
 #' @param data a data frame with XY data
@@ -10,7 +10,7 @@
 #' @param ry column for relative yield
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
-#' @param band choose whether the correlation plot displays confidence band
+#' @param extrapolate choose whether the fitted line extends to X = 0
 #' no effect if plot = FALSE
 #' @export
 
@@ -44,8 +44,7 @@ lin_plateau <- function(data = NULL,
                         ry,
                         resid = FALSE,
                         plot = FALSE,
-                        extrapolate = FALSE,
-                        band = FALSE) {
+                        extrapolate = FALSE) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -60,7 +59,13 @@ lin_plateau <- function(data = NULL,
     
     y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
     
-    corr_data <- dplyr::tibble(x = x, y = y)
+    if (max(y) < 2) {
+        stop("The reponse variable appears to not be on a percentage scale.
+             If so, please multiply it by 100.")
+    }
+    
+    corr_data <- dplyr::tibble(x = as.numeric(x), 
+                               y = as.numeric(y))
     
     if (nrow(corr_data) < 4) {
         stop("Too few distinct input values to fit LP. Try at least 4.")
@@ -170,31 +175,9 @@ lin_plateau <- function(data = NULL,
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         
-        {
-            if (band == TRUE)
-                # confidence band based on delta method
-                conf_band <- nlraa::predict2_nls(
-                        object = corr_model,
-                        newdata = corr_data,
-                        interval = "confidence",
-                        level = 0.95) %>%
-                        dplyr::as_tibble() %>% 
-                        dplyr::bind_cols(corr_data)
-        }
-        
         ## ggplot of correlation
         lp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
-            {
-                if (band == TRUE)
-                    geom_ribbon(data = conf_band,
-                                aes(x = x,
-                                    y = Estimate,
-                                    ymin = Q2.5,
-                                    ymax = Q97.5),
-                                #inherit.aes = FALSE,
-                                alpha = 0.1)
-            } +
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +

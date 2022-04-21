@@ -3,7 +3,7 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-21
+#' Last updated: 2022-04-08
 #'
 #' @name mitscherlich_1000 asymptote = 100 and Y-intercept is 0, so "1000"
 #' @param data a data frame with XY data

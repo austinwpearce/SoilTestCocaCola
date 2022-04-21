@@ -3,7 +3,7 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-08
+#' Last updated: 2022-04-21
 #'
 #' @name mitscherlich
 #' @param data a data frame with XY data
@@ -14,7 +14,6 @@
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param extrapolate choose whether the fitted line extends to X = 0
-#' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
 #' @export
 
@@ -58,8 +57,7 @@ mitscherlich <- function(data = NULL,
                          percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
-                         extrapolate = FALSE,
-                         band = FALSE) {
+                         extrapolate = FALSE) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -77,25 +75,23 @@ mitscherlich <- function(data = NULL,
     y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
     
     if (max(y) < 2) {
-        stop("Is the reponse variable on a percentage scale? If not, please multiply it by 100")
+        stop("The reponse variable appears to not be on a percentage scale.
+             If so, please multiply it by 100.")
     }
     
-    corr_data <- dplyr::tibble(x = x, y = y)
+    corr_data <- dplyr::tibble(x = as.numeric(x), 
+                               y = as.numeric(y))
     
     if (nrow(corr_data) < 4) {
         stop("Too few distinct input values to fit LP. Try at least 4.")
     }
     
-    minx <- min(corr_data$x)
+    minx <- min(corr_data$x) 
     maxx <- max(corr_data$x)
     rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
     start_c <- -(rangex) / (maxy - miny) / 2
-    
-    if (maxy < 2) {
-        stop("Please specify the variable name for relative yields using the `ry` argmuent")
-    }
     
     # build the model/fit ==================================================
     # even though the functions are selfStarting, providing starting values
@@ -104,7 +100,7 @@ mitscherlich <- function(data = NULL,
     
     corr_model <- try(
         nlsLM(
-        formula = y ~ mit(x, a, b, c),
+        formula = y ~ SSasymp(x, a, b, c),
         data = corr_data,
         start = list(a = maxy, b = miny, c = start_c),
         upper = c(a = Inf, b = maxy, c = -1e-7), # force c to be negative is theoretical
@@ -161,17 +157,6 @@ mitscherlich <- function(data = NULL,
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         
-        {
-            if (band == TRUE)
-                conf_band <- nlraa::predict2_nls(
-                    object = corr_model,
-                    newdata = corr_data,
-                    interval = "confidence",
-                    level = 0.95) %>%
-                dplyr::as_tibble() %>% 
-                dplyr::bind_cols(corr_data)
-        }
-        
         # To get fitted line from corr_model
         pred_y <- dplyr::tibble(x = seq(
             from = if_else(extrapolate == TRUE, 0, minx),
@@ -181,15 +166,6 @@ mitscherlich <- function(data = NULL,
         # ggplot of correlation
         mit_plot <- corr_data %>% 
             ggplot(aes(x, y)) +
-            {
-                if (band == TRUE)
-                    geom_ribbon(data = conf_band,
-                                aes(x = x,
-                                    y = Estimate,
-                                    ymin = Q2.5,
-                                    ymax = Q97.5),
-                                alpha = 0.05)
-            } +
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +

@@ -1,21 +1,19 @@
-#' The following function fits a Mitscherlich-type model
-#' May also be known as exponential, asymptotic, exponential rise to the max
+#' The following function fits a quadratic plateau model
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-21
+#' Last updated: 2022-04-08
 #'
-#' @name mitscherlich_1000 asymptote = 100 and Y-intercept is 0, so "1000"
+#' @name quad_plateau
 #' @param data a data frame with XY data
 #' @param stv column for soil test values
 #' @param ry column for relative yield
-#' @param percent_of_max if wanting to find the X value for a point along the
-#' quadratic portion at certain Y value
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
-#' @param extrapolate choose whether the fitted line goes through the origin
 #' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
+#' @param percent_of_max if wanting to find the X value for a point along the
+#' quadratic portion at certain Y value
 #' @export
 
 # packages/dependencies needed
@@ -34,29 +32,22 @@ gold <- "#EAAA00"
 blue <- "#13274F"
 black <- "#000000"
 
-# ========================================================
+# =============================================================================
+# The QP model and parameters
+# y = if{x <= cx, b0 + b1x + b2x^2; b0 + b1*cx + b2*cx^2}
+# b0 = intercept
+# b1 = slope
+# b2 = quadratic term = -0.5 * b1 / cx
+# cx = critical X value = join point = Critical Soil Test Value (CSTV) 
+# cx = -0.5 * b1 / b2
 
-# "Mitscherlich" type model with three parameters
-# CSTV is evaluated at Y some % of asymptote
-# following the form used in SSasymp()
-# y = a + (b - a) * e^(-e^(c) * x)
-# a = horizontal asymptote (maximum yield potential)
-# b = intercept when soil test is 0
-# intercept is theoretical as soil never quite reaches 0
-# c = curvature, natural log of the rate constant (ought to be negative in nls)
-
-mit_1000 <- function(x, c) {
-    100 + (0 - 100) * exp(-exp(c) * x)
-}
-
-mitscherlich_1000 <- function(data = NULL,
+quad_plateau <- function(data = NULL,
                          stv,
                          ry,
-                         percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
-                         extrapolate = FALSE,
-                         band = FALSE) {
+                         band = FALSE,
+                         percent_of_max = 95) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -84,26 +75,37 @@ mitscherlich_1000 <- function(data = NULL,
     }
     
     minx <- min(corr_data$x)
+    meanx <- mean(corr_data$x)
     maxx <- max(corr_data$x)
-    rangex <- maxx - minx
     miny <- min(corr_data$y)
     maxy <- max(corr_data$y)
-    start_c <- -(rangex) / (maxy - miny) / 2
     
-    # build the model/fit ==================================================
+    # build the model/fit =====
     # even though the functions are selfStarting, providing starting values
     # increases the chance the SS functions converge on something reasonable
-    # starting values shown are based on whether asymptote or origin are forced
+    # starting values (sv)
+    sv <- list(b0 = miny, b1 = 1, cx = meanx)
     
-    corr_model <- try(nlsLM(
-        formula = y ~ mit_1000(x, c),
-        data = corr_data,
-        start = list(c = start_c),
-        upper = c(c = -1e-7), # force c to be negative is theoretical
-        lower = c(c = -100)))
+    nls_model <- try(
+        nls(y ~ SSquadp3xs(x, b0, b1, cx),
+            data = corr_data,
+            start = sv))
+    # SSquadp3() also an option, especially if setting bounds on b2 param
+    
+    if (inherits(nls_model, "try-error")) {
+        corr_model <- try(
+            minpack.lm::nlsLM(y ~ SSquadp3xs(x, b0, b1, cx),
+                              data = corr_data,
+                              start = sv))
+    } else {
+        corr_model <- nls_model
+    }
     
     if (inherits(corr_model, "try-error")) {
-        stop("Mitscherlich model with forced asymptote and intercept could not be fit. Consider another model.")
+        stop("QP model could not be fit with nls or nlsLM.
+             Consider another model.")
+    } else {
+        corr_model <- corr_model
     }
     
     # How did the model do overall?
@@ -113,42 +115,49 @@ mitscherlich_1000 <- function(data = NULL,
     rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
     
     # get model coefficients
-    a <- 100
-    b <- 0
-    c <- exp(coef(corr_model)[[1]]) # equation based on natural log
+    b0 <- coef(corr_model)[[1]]
+    b1 <- coef(corr_model)[[2]]
+    cx <- coef(corr_model)[[3]]
     # derived values
-    ry_pom <- a * percent_of_max / 100 # pom = percent of max
-    cx <- log((ry_pom - a) / (b - a)) / -c # cx = critical X
+    b2 <- -0.5 * b1 / cx
+    plateau <- b0 + (b1 * cx) + (b2 * cx * cx)
     cstv <- round(cx, 0)
     
-    # this equation is modified from original notation for c 
-    equation <- paste0(round(a, 1), " + (", round(b,1), " - ", round(a, 1),
-                       ") * e^(-", round(c, 3), "x)")
+    equation <- paste0(round(b0, 1), " + ",
+                       round(b1, 2), "x + ",
+                       round(b2, 3), "x^2")
     
-    # Table output =================================================
+    # CSTV at defined % of max/plateau
+    # To find an X value at a given Y less than predicted plateau
+    newplateau <- plateau * percent_of_max / 100
+    discriminant <- (b1 ^ 2) - (4 * (b0 - newplateau) * b2)
+    cstv_pom <- (-b1 + sqrt(discriminant)) / (2 * b2)
+    
+    # Printouts
     if (plot == FALSE) {
         {
             if (resid == TRUE)
-                plot(nlstools::nlsResiduals(corr_model), which = 0)
+                plot(nlsResiduals(corr_model), which = 0)
         }
         tibble(
-            asymptote = a,
-            intercept = b,
-            rate_constant = round(c, 2),
+            intercept = round(b0, 2),
+            slope = round(b1, 2),
+            curve = round(b2, 4),
             equation,
             cstv,
-            ry_cstv = round(ry_pom, 1),
-            percent_of_max,
+            plateau = round(plateau, 1),
             AIC,
             AICc,
             rmse,
-            rsquared
+            rsquared,
+            cstv_pom = round(cstv_pom, 0),
+            percent_of_max
         )
     } else {
         # Residual plots and normality
         {
             if (resid == TRUE)
-                plot(nlstools::nlsResiduals(corr_model), which = 0)
+                plot(nlsResiduals(corr_model), which = 0)
         }
         
         {
@@ -158,18 +167,16 @@ mitscherlich_1000 <- function(data = NULL,
                     newdata = corr_data,
                     interval = "confidence",
                     level = 0.95) %>%
-                dplyr::as_tibble() %>% 
+                dplyr::as_tibble() %>%
                 dplyr::bind_cols(corr_data)
         }
         
         # To get fitted line from corr_model
-        pred_y <- dplyr::tibble(x = seq(
-            from = if_else(extrapolate == TRUE, 0, minx),
-            to = maxx, by = 0.1)) %>%
+        pred_y <- dplyr::tibble(x = seq(minx, maxx, 0.1)) %>%
             modelr::gather_predictions(corr_model)
         
         # ggplot of correlation
-        mit_plot <- corr_data %>% 
+        qp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
             {
                 if (band == TRUE)
@@ -178,12 +185,12 @@ mitscherlich_1000 <- function(data = NULL,
                                     y = Estimate,
                                     ymin = Q2.5,
                                     ymax = Q97.5),
-                                alpha = 0.05)
+                                alpha = 0.1)
             } +
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
-            geom_hline(yintercept = ry_pom,
+            geom_hline(yintercept = plateau,
                        alpha = 0.2) +
             # fitted line
             geom_line(data = pred_y,
@@ -195,15 +202,15 @@ mitscherlich_1000 <- function(data = NULL,
                                breaks = seq(0, maxy * 2, 10)) +
             scale_x_continuous(
                 breaks = seq(0, maxx * 2, by = if_else(
-                    condition = rangex >= 200,
-                    true = 20,
+                    condition = maxx >= 300,
+                    true = 30,
                     false = if_else(
-                        condition = rangex >= 100,
-                        true = 10,
+                        condition = maxx >= 100,
+                        true = 20,
                         false = if_else(
-                            condition = rangex >= 50,
-                            true = 5,
-                            false = 2))))) +
+                            condition = maxx >= 50,
+                            true = 10,
+                            false = 5))))) +
             annotate(
                 "text",
                 label = paste("CSTV =", cstv, "ppm"),
@@ -216,14 +223,13 @@ mitscherlich_1000 <- function(data = NULL,
             ) +
             annotate(
                 "text",
-                label = paste0(percent_of_max, "% of asymptote = ",
-                               round(ry_pom, 1), "% RY"),
+                label = paste0("Plateau = ", round(plateau, 1), "%"),
                 x = maxx,
-                y = ry_pom,
+                y = plateau,
                 alpha = 0.5,
-                vjust = 1.5,
-                hjust = 1
-            )+
+                hjust = 1,
+                vjust = 1.5
+            ) +
             annotate(
                 "text",
                 alpha = 0.5,
@@ -236,11 +242,13 @@ mitscherlich_1000 <- function(data = NULL,
                 vjust = 0,
                 hjust = 1
             ) +
-            labs(x = "Soil test value (mg/kg)",
-                 y = "Relative yield (%)",
-                 caption = paste("Each point is a site. n =", nrow(corr_data)))
+            labs(
+                x = "Soil test value (mg/kg)",
+                y = "Relative yield (%)",
+                caption = paste("Each point is a site. n =", nrow(corr_data))
+            )
         
-        return(mit_plot)
+        return(qp_plot)
     }
     
 }
@@ -291,3 +299,47 @@ theme_set(
             #legend.position = c(1, 1)
         )
 )
+
+# =============================================================================
+# other functions for fitting nls model only
+# 
+# qp <- function(x, b0, b1, cx) {
+#     b2 <- -0.5 * b1 / cx
+#     if_else(
+#         condition = x < cx,
+#         true  = b0 + (b1 * x) + (b2 * x * x),
+#         false = b0 + (b1 * cx) + (b2 * cx * cx)
+#     )
+# }
+# 
+# fit_qp <- function(data) {
+#     start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
+#     # nls model
+#     fit <- nlsLM(
+#         formula = y ~ qp(x, b0, b1, cx),
+#         data = data,
+#         start = list(
+#             b0 = start$coef[[1]],
+#             b1 = start$coef[[2]],
+#             cx = mean(data$x)
+#         ),
+#         control = nls.lm.control(maxiter = 500)
+#     )
+#     return(fit)
+# }
+# 
+# fit_SSquadp3xs <- function(data) {
+#     # nlraa model
+#     fit <- nlsLM(
+#         formula = y ~ SSquadp3xs(x, b0, b1, cx),
+#         data = data,
+#         control = nls.lm.control(maxiter = 500)
+#         # upper = c(b0 = max(data$y),
+#         #           b1 = 1000,
+#         #           b2 = 0),
+#         # lower = c(b0 = -1000,
+#         #           b1 = 0,
+#         #           b2 = -Inf)
+#     )
+#     return(fit)
+# }

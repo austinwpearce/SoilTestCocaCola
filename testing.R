@@ -28,38 +28,32 @@ source_url(str_c(base_url, "alcc.R"))
 source_url(str_c(base_url, "alcc_plot.R"))
 
 # =============================================================================
-cotton <- tibble(stk = agridat::cate.potassium$potassium,
-                 ry = agridat::cate.potassium$yield, 
-                 dataset = "cotton")
+corr_data <- tibble(
+    x = agridat::cate.potassium$potassium,
+    y = agridat::cate.potassium$yield, 
+    dataset = "cotton")
 
-lin_plateau(cotton)
+# Note that the X variable is an integer! This is handled within the function
+
+lin_plateau(corr_data)
 # must specify the ST and RY columns
-lin_plateau(cotton, stk, ry)
-lin_plateau(stv =  cotton$stk, ry = cotton$ry)
-lin_plateau(cotton, stk, ry, plot = TRUE)
-lin_plateau(cotton, stk, ry, plot = TRUE, band = TRUE)
+lin_plateau(corr_data, stk, ry)
+lin_plateau(stv =  corr_data$stk, ry = corr_data$ry)
+lin_plateau(corr_data, stk, ry, plot = TRUE)
+lin_plateau(corr_data, stk, ry, plot = TRUE, band = TRUE)
 
-quad_plateau(cotton)
+quad_plateau(corr_data)
 # must specify the ST and RY columns
-quad_plateau(cotton, stk, ry)
-quad_plateau(stv =  cotton$stk, ry = cotton$ry)
-quad_plateau(cotton, stk, ry, plot = TRUE)
-quad_plateau(cotton, stk, ry, plot = TRUE, band = TRUE)
+quad_plateau(corr_data, stk, ry)
+quad_plateau(stv =  corr_data$stk, ry = corr_data$ry)
+quad_plateau(corr_data, stk, ry, plot = TRUE)
+quad_plateau(corr_data, stk, ry, plot = TRUE, band = TRUE)
 
-mitscherlich(cotton)
+mitscherlich(corr_data)
 # must specify the ST and RY columns
-mitscherlich(cotton, stk, ry)
-mitscherlich(stv =  cotton$stk, ry = cotton$ry)
-mitscherlich(cotton, stk, ry, plot = TRUE)
-mitscherlich(cotton, stk, ry, plot = TRUE, band = TRUE)
-
-cotton %>% 
-    mutate(x = stk, y = ry) %>% 
-    nls(y ~ SSasymp(x, a, b, c), data = .)
-
-cotton %>% 
-    mutate(x = stk, y = ry) %>% 
-    mitscherlich(plot = TRUE, force_origin = TRUE)
+mitscherlich(corr_data, stk, ry)
+mitscherlich(stv = corr_data$stk, ry = corr_data$ry)
+mitscherlich(corr_data, x, y, plot = TRUE)
 
 # ALCC
 
@@ -67,8 +61,8 @@ cotton %>%
 # The ALCC method requires RY ratio values between 0-1,
 # and percentage values between 0-100%
 
-plot(cotton$ry ~ cotton$stk) |> abline(h = 100)
-count(cotton, stk > 100) # 3 site-years exceeded 100
+plot(corr_data$ry ~ corr_data$stk) |> abline(h = 100)
+count(corr_data, stk > 100) # 3 site-years exceeded 100
 
 # Round down to 100 or let function do it
 # cotton <- cotton %>% 

@@ -2,18 +2,18 @@
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-08
+#' Last updated: 2022-04-21
 #'
 #' @name quad_plateau
 #' @param data a data frame with XY data
 #' @param stv column for soil test values
 #' @param ry column for relative yield
-#' @param resid choose whether to create residuals plots
-#' @param plot choose whether to create correlation plot rather than table
-#' @param band choose whether the correlation plot displays confidence band
-#' no effect if plot = FALSE
 #' @param percent_of_max if wanting to find the X value for a point along the
 #' quadratic portion at certain Y value
+#' @param resid choose whether to create residuals plots
+#' @param plot choose whether to create correlation plot rather than table
+#' @param extrapolate choose whether the fitted line extends to X = 0
+#' no effect if plot = FALSE
 #' @export
 
 # packages/dependencies needed
@@ -44,10 +44,10 @@ black <- "#000000"
 quad_plateau <- function(data = NULL,
                          stv,
                          ry,
+                         percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
-                         band = FALSE,
-                         percent_of_max = 95) {
+                         extrapolate = FALSE) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -62,7 +62,13 @@ quad_plateau <- function(data = NULL,
     
     y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
     
-    corr_data <- dplyr::tibble(x = x, y = y)
+    if (max(y) < 2) {
+        stop("The reponse variable appears to not be on a percentage scale.
+             If so, please multiply it by 100.")
+    }
+    
+    corr_data <- dplyr::tibble(x = as.numeric(x), 
+                               y = as.numeric(y))
     
     if (nrow(corr_data) < 4) {
         stop("Too few distinct input values to fit LP. Try at least 4.")
@@ -154,33 +160,15 @@ quad_plateau <- function(data = NULL,
                 plot(nlsResiduals(corr_model), which = 0)
         }
         
-        {
-            if (band == TRUE)
-                conf_band <- nlraa::predict2_nls(
-                    object = corr_model,
-                    newdata = corr_data,
-                    interval = "confidence",
-                    level = 0.95) %>%
-                dplyr::as_tibble() %>%
-                dplyr::bind_cols(corr_data)
-        }
-        
         # To get fitted line from corr_model
-        pred_y <- dplyr::tibble(x = seq(minx, maxx, 0.1)) %>%
+        pred_y <- dplyr::tibble(x = seq(
+            from = if_else(extrapolate == TRUE, 0, minx),
+            to = maxx, by = 0.1)) %>%
             modelr::gather_predictions(corr_model)
         
         # ggplot of correlation
         qp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
-            {
-                if (band == TRUE)
-                    geom_ribbon(data = conf_band,
-                                aes(x = x,
-                                    y = Estimate,
-                                    ymin = Q2.5,
-                                    ymax = Q97.5),
-                                alpha = 0.1)
-            } +
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
