@@ -263,7 +263,7 @@ fit_mit <- function(data){
                               b = min(data$y),
                               c = -1),
                  control = nls.lm.control(maxiter = 500),
-                 upper = c(a = Inf, b = max(data$y), c = 0),
+                 upper = c(a = Inf, b = max(data$y), c = -1e-7),
                  lower = c(a = min(data$y), b = -Inf, c = -Inf)
     )
     return(fit)
