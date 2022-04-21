@@ -169,6 +169,10 @@ quad_plateau <- function(data = NULL,
         # ggplot of correlation
         qp_plot <- corr_data %>%
             ggplot(aes(x, y)) +
+            {
+                if (extrapolate == TRUE)
+                    geom_vline(xintercept = 0, alpha = 0.2)
+            } +
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +

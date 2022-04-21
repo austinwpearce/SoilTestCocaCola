@@ -23,14 +23,17 @@ source_url(str_c(base_url, "quad_plateau.R"))
 # mitscherlich function
 source_url(str_c(base_url, "mitscherlich.R"))
 
+# mitscherlich_1000 (forces asymptote to 100 and intercept to 0)
+source_url(str_c(base_url, "mitscherlich_1000.R"))
+
 # ALCC function
 source_url(str_c(base_url, "alcc.R"))
 source_url(str_c(base_url, "alcc_plot.R"))
 
 # =============================================================================
 corr_data <- tibble(
-    x = agridat::cate.potassium$potassium,
-    y = agridat::cate.potassium$yield, 
+    stk = agridat::cate.potassium$potassium,
+    ry = agridat::cate.potassium$yield, 
     dataset = "cotton")
 
 # Note that the X variable is an integer! This is handled within the function
@@ -40,7 +43,7 @@ lin_plateau(corr_data)
 lin_plateau(corr_data, stk, ry)
 lin_plateau(stv =  corr_data$stk, ry = corr_data$ry)
 lin_plateau(corr_data, stk, ry, plot = TRUE)
-lin_plateau(corr_data, stk, ry, plot = TRUE, band = TRUE)
+lin_plateau(corr_data, stk, ry, plot = TRUE, extrapolate = TRUE)
 
 quad_plateau(corr_data)
 # must specify the ST and RY columns

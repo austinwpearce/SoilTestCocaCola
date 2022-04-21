@@ -14,7 +14,6 @@
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param extrapolate choose whether the fitted line goes through the origin
-#' @param band choose whether the correlation plot displays confidence band
 #' no effect if plot = FALSE
 #' @export
 
@@ -55,8 +54,7 @@ mitscherlich_1000 <- function(data = NULL,
                          percent_of_max = 95,
                          resid = FALSE,
                          plot = FALSE,
-                         extrapolate = FALSE,
-                         band = FALSE) {
+                         extrapolate = FALSE) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -151,17 +149,6 @@ mitscherlich_1000 <- function(data = NULL,
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         
-        {
-            if (band == TRUE)
-                conf_band <- nlraa::predict2_nls(
-                    object = corr_model,
-                    newdata = corr_data,
-                    interval = "confidence",
-                    level = 0.95) %>%
-                dplyr::as_tibble() %>% 
-                dplyr::bind_cols(corr_data)
-        }
-        
         # To get fitted line from corr_model
         pred_y <- dplyr::tibble(x = seq(
             from = if_else(extrapolate == TRUE, 0, minx),
@@ -172,13 +159,8 @@ mitscherlich_1000 <- function(data = NULL,
         mit_plot <- corr_data %>% 
             ggplot(aes(x, y)) +
             {
-                if (band == TRUE)
-                    geom_ribbon(data = conf_band,
-                                aes(x = x,
-                                    y = Estimate,
-                                    ymin = Q2.5,
-                                    ymax = Q97.5),
-                                alpha = 0.05)
+                if (extrapolate == TRUE)
+                    geom_vline(xintercept = 0, alpha = 0.2)
             } +
             geom_vline(xintercept = cx,
                        alpha = 1,
