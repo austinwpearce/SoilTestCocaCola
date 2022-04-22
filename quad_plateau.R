@@ -3,7 +3,6 @@
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
 #' Last updated: 2022-04-21
-#'
 #' @name quad_plateau
 #' @param data a data frame with XY data
 #' @param stv column for soil test values
