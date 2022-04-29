@@ -39,6 +39,15 @@ black <- "#000000"
 # =============================================================================
 # lin_plateau function
 
+# fit_lp <- function(data){
+#     b1 <- (max(data$y) - min(data$y)) / (mean(data$x) - min(data$x))
+#     b0 <- 95 * b1
+#     cx <- mean(data$x)
+#     fit <- nls(y ~ lp(x, b0, b1, cx), data = data,
+#                start = c(b0 = b0, b1 = b1, cx = cx))
+#     return(fit)
+# }
+
 lin_plateau <- function(data = NULL,
                         stv,
                         ry,
