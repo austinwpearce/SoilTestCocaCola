@@ -9,6 +9,7 @@
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
 #' @param ry column for relative yield values 0-100%
+#' @param sma choose if Standardized Major Axis (SMA) regression is used w/ ALCC
 #' @param sufficiency choose at which RY value to get CSTV
 #' @param confidence choose at which confidence level to estimate CI of CSTV
 #' @param remove2x if TRUE, redo alcc() with data greater than twice the CSTV removed
@@ -64,6 +65,7 @@ theme_set(
 alcc_plot <- function(data,
                       soil_test,
                       ry,
+                      sma = TRUE,
                       sufficiency = 90,
                       confidence = 95,
                       remove2x = FALSE) {
@@ -89,6 +91,7 @@ alcc_plot <- function(data,
     output <- alcc(data,
                    soil_test = !!x,
                    ry = !!y,
+                   sma = sma,
                    sufficiency = sufficiency,
                    confidence = confidence,
                    remove2x = remove2x)
@@ -155,13 +158,15 @@ alcc_plot <- function(data,
                                ))) +
         scale_y_continuous(breaks = seq(0, 105, 10)) +
         labs(
-            subtitle = "Modified Arcsine-Log Calibration Curve with SMA",
+            subtitle = if_else(sma == TRUE,
+                            "Modified Arcsine-Log Calibration Curve with SMA",
+                            "Arcsine-Log Calibration Curve"),
             x = expression(Soil ~ Test ~ Value ~ (mg ~ kg ^ -1)),
             y = "Relative yield (%)",
             caption = paste0(
                 if_else(remove2x == TRUE,
                         "Red points > CSTV90 * 2 excluded from model",
-                        "Red points > CSTV100 may be outliers, but were included. Yellow points > CSTV90 * 2 not excluded."),
+                        "Red points > CSTV100 excluded from model. Yellow points > CSTV90 * 2 not excluded."),
                 "\nVertical dotted lines show lower and upper confidence limits"
             )
         )

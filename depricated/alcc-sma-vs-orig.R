@@ -9,6 +9,7 @@
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
 #' @param ry column for relative yield values 0-100%
+#' @param sma choose if Standardized Major Axis (SMA) regression is used w/ ALCC
 #' @param sufficiency choose at which RY value to get CSTV
 #' @param confidence choose at which confidence level to estimate CI of CSTV
 #' @param summary choose if full table or just summary should be returned
@@ -25,6 +26,7 @@ library(tidyverse) # a suite of packages for wrangling and plotting
 alcc_core <- function(data,
                       soil_test,
                       ry,
+                      sma,
                       sufficiency,
                       confidence) {
     
@@ -49,7 +51,8 @@ alcc_core <- function(data,
             stv = !!x,
             # RY values greater than 100 are capped at 100
             ry_cap = if_else(!!y > 100, 100, !!y),
-            model = "ALCC-SMA",
+            model = case_when(sma == TRUE ~ "ALCC-SMA",
+                              sma == FALSE ~ "ALCC"),
             # get sample size
             n = n(),
             # Step 1 Transform (t for "transformed" added to x and y)
@@ -78,8 +81,10 @@ alcc_core <- function(data,
             slope = coef(ols_center)[[2]],
             # Step 6 Rotate the regression (SMA)
             # slope must come first
-            slope = slope / pearson,
-            intercept = mean_yt - slope * mean_xt,
+            slope = case_when(sma == TRUE ~ slope / pearson,
+                              sma == FALSE ~ slope),
+            intercept = case_when(sma == TRUE ~ mean_yt - slope * mean_xt,
+                                  sma == FALSE ~ intercept),
             # Step 7 Estimate Critical Soil Test Concentration
             cstv = exp(intercept),
             # Step 8 Estimate the confidence interval
@@ -106,6 +111,7 @@ alcc_core <- function(data,
 alcc <- function(data,
                  soil_test,
                  ry,
+                 sma = TRUE,
                  sufficiency = 90,
                  confidence = 95,
                  remove2x = FALSE,
@@ -139,6 +145,7 @@ alcc <- function(data,
         alcc_core(
             soil_test = !!x,
             ry = !!y,
+            sma = sma,
             sufficiency = 100,
             confidence = confidence
         )
@@ -146,11 +153,11 @@ alcc <- function(data,
     cstv_100 <- unique(stage_1$cstv)
     
     stage_2 <- data %>%
-        # remove this filter step for now until I better understand the paper
-        #filter(!!x <= cstv_100) %>% 
+        filter(!!x <= cstv_100) %>% 
         alcc_core(
             soil_test = !!x,
             ry = !!y,
+            sma = sma,
             sufficiency = 90,
             confidence = confidence
         )
@@ -159,9 +166,10 @@ alcc <- function(data,
     
     stage_3 <- data %>%
         filter(case_when(remove2x == TRUE ~ !!x <= cstv90_2x,
-                         remove2x == FALSE ~ !!x >= 0)) %>%  
+                         remove2x == FALSE ~ !!x <= cstv_100)) %>%  
         alcc_core(soil_test = !!x,
                   ry = !!y,
+                  sma = sma,
                   sufficiency = sufficiency,
                   confidence = confidence) %>% 
         mutate(remove2x = "TRUE",
