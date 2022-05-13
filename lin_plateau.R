@@ -49,24 +49,24 @@ black <- "#000000"
 # }
 
 lin_plateau <- function(data = NULL,
-                        stv,
-                        ry,
+                        x,
+                        y,
                         resid = FALSE,
                         plot = FALSE,
                         extrapolate = FALSE) {
     
-    if (missing(stv)) {
-        stop("Please specify the variable name for soil test concentrations using the `stv` argument")
+    if (missing(x)) {
+        stop("Please specify the explanatory variable name (e.g. soil test concentration) using the `x` argument")
     }
     
-    if (missing(ry)) {
-        stop("Please specify the variable name for relative yields using the `ry` argmuent")
+    if (missing(y)) {
+        stop("Please specify the response variable name (e.g. relative yield) using the `y` argmuent")
     }
     
     # Re-define x and y from STV and RY (tip to AC)
-    x <- rlang::eval_tidy(data = data, rlang::quo({{stv}}) )
+    x <- rlang::eval_tidy(data = data, rlang::quo({{x}}) )
     
-    y <- rlang::eval_tidy(data = data, rlang::quo({{ry}}) )
+    y <- rlang::eval_tidy(data = data, rlang::quo({{y}}) )
     
     if (max(y) < 2) {
         stop("The reponse variable appears to not be on a percentage scale.
