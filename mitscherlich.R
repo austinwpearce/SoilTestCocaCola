@@ -1,9 +1,9 @@
-#' The following function fits a Mitscherlich-type model
+#' The following function fits a Mitscherlich-type exponential model
 #' May also be known as exponential, asymptotic, exponential rise to the max
 #' It is designed for soil test correlation data 
 #' This function can provide results in a table format or as a plot
 #' Author: Austin Pearce
-#' Last updated: 2022-04-21
+#' Last updated: 2022-05-31
 #'
 #' @name mitscherlich
 #' @param data a data frame with XY data
