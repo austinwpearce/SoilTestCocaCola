@@ -239,53 +239,6 @@ quad_plateau <- function(data = NULL,
 }
 
 # =============================================================================
-# preferred theme for ggplot
-
-theme_set(
-    theme_minimal(base_size = 14) +
-        theme(
-            plot.background = NULL,
-            plot.margin = margin(
-                t = 2,
-                r = 10,
-                b = 2,
-                l = 2,
-                unit = "pt"
-            ),
-            panel.grid = element_line(color = "#F4F4F4"),
-            panel.spacing = unit(2, "lines"),
-            panel.border = element_blank(),
-            axis.line = element_blank(),
-            axis.ticks = element_blank(),
-            axis.title.y = element_text(
-                hjust = 1,
-                margin = margin(
-                    t = 0,
-                    r = 10,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.title.x = element_text(
-                hjust = 0,
-                margin = margin(
-                    t = 10,
-                    r = 0,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.text = element_text(),
-            legend.title.align = 0,
-            legend.key.height = unit(x = 5, units = "mm"),
-            legend.justification = c(1, 1)
-            #legend.position = c(1, 1)
-        )
-)
-
-# =============================================================================
 # other functions for fitting nls model only
 # 
 # qp <- function(x, b0, b1, cx) {
@@ -295,36 +248,4 @@ theme_set(
 #         true  = b0 + (b1 * x) + (b2 * x * x),
 #         false = b0 + (b1 * cx) + (b2 * cx * cx)
 #     )
-# }
-# 
-# fit_qp <- function(data) {
-#     start <- lm(y ~ poly(x, 2, raw = TRUE), data = data)
-#     # nls model
-#     fit <- nlsLM(
-#         formula = y ~ qp(x, b0, b1, cx),
-#         data = data,
-#         start = list(
-#             b0 = start$coef[[1]],
-#             b1 = start$coef[[2]],
-#             cx = mean(data$x)
-#         ),
-#         control = nls.lm.control(maxiter = 500)
-#     )
-#     return(fit)
-# }
-# 
-# fit_SSquadp3xs <- function(data) {
-#     # nlraa model
-#     fit <- nlsLM(
-#         formula = y ~ SSquadp3xs(x, b0, b1, cx),
-#         data = data,
-#         control = nls.lm.control(maxiter = 500)
-#         # upper = c(b0 = max(data$y),
-#         #           b1 = 1000,
-#         #           b2 = 0),
-#         # lower = c(b0 = -1000,
-#         #           b1 = 0,
-#         #           b2 = -Inf)
-#     )
-#     return(fit)
 # }

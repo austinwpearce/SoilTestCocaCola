@@ -45,19 +45,31 @@ black <- "#000000"
 # intercept is theoretical as soil never quite reaches 0
 # c = curvature, natural log of the rate constant (ought to be negative in nls)
 
-mit <- function(x, a, b, c) {
+fun_exp <- function(x, a, b, c) {
     a + (b - a) * exp(-exp(c) * x)
+}
+
+get_exp_cstv <- function(model, pct_of_max = 95, target = NULL){
+    a <- coef(model)[[1]]
+    b <- coef(model)[[2]]
+    c <- coef(model)[[3]]
+    if(is.null(target)){
+        cstv <- log(((a * pct_of_max / 100) - a)/(b - a))/(-exp(c))
+    } else {
+        cstv <- log((target - a)/(b - a))/(-exp(c))
+    }
+    return(cstv)
 }
 
 # SSasymp uses this formula, so for those interested in not providing starting values, that could be an option
 
-mitscherlich <- function(data = NULL,
-                         stv,
-                         ry,
-                         percent_of_max = 95,
-                         resid = FALSE,
-                         plot = FALSE,
-                         extrapolate = FALSE) {
+exponential <- function(data = NULL,
+                        stv,
+                        ry,
+                        percent_of_max = 95,
+                        resid = FALSE,
+                        plot = FALSE,
+                        extrapolate = FALSE) {
     
     if (missing(stv)) {
         stop("Please specify the variable name for soil test concentrations using the `stv` argument")
@@ -67,7 +79,9 @@ mitscherlich <- function(data = NULL,
         stop("Please specify the variable name for relative yields using the `ry` argmuent")
     }
     
-    
+    if (percent_of_max < 1){
+        warning("Please express percent on scale 0 - 100 rather than 0 - 1 (e.g. 95 = 95%)")
+    }
     
     # Re-define x and y from STV and RY (tip to AC)
     x <- rlang::eval_tidy(data = data, rlang::quo({{stv}}) )
@@ -100,7 +114,7 @@ mitscherlich <- function(data = NULL,
     
     corr_model <- try(
         nlsLM(
-        formula = y ~ SSasymp(x, a, b, c),
+        formula = y ~ fun_exp(x, a, b, c),
         data = corr_data,
         start = list(a = maxy, b = miny, c = start_c),
         upper = c(a = Inf, b = maxy, c = -1e-7), # force c to be negative is theoretical
@@ -109,7 +123,7 @@ mitscherlich <- function(data = NULL,
         )
     
     if (inherits(corr_model, "try-error")) {
-        stop("Mitscherlich model could not be fit. Consider another model.")
+        stop("Mitscherlich-type exponential model could not be fit. Consider another model.")
     }
     
     # How did the model do overall?
@@ -124,7 +138,7 @@ mitscherlich <- function(data = NULL,
     c <- exp(coef(corr_model)[[3]]) # equation based on natural log
     # derived values
     ry_pom <- a * percent_of_max / 100
-    cx <- log((ry_pom - a) / (b - a)) / -c # cx = critical X
+    cx <- get_exp_cstv(corr_model, pct_of_max = percent_of_max)
     cstv <- round(cx, 0)
     
     # this equation is modified from original notation for c 
@@ -164,7 +178,7 @@ mitscherlich <- function(data = NULL,
             modelr::gather_predictions(corr_model)
         
         # ggplot of correlation
-        mit_plot <- corr_data %>% 
+        exp_plot <- corr_data %>% 
             ggplot(aes(x, y)) +
             {
                 if (extrapolate == TRUE)
@@ -230,54 +244,7 @@ mitscherlich <- function(data = NULL,
                  y = "Relative yield (%)",
                  caption = paste("Each point is a site. n =", nrow(corr_data)))
         
-        return(mit_plot)
+        return(exp_plot)
     }
     
 }
-
-# =============================================================================
-# preferred theme for ggplot
-
-theme_set(
-    theme_minimal(base_size = 14) +
-        theme(
-            plot.background = NULL,
-            plot.margin = margin(
-                t = 2,
-                r = 10,
-                b = 2,
-                l = 2,
-                unit = "pt"
-            ),
-            panel.grid = element_line(color = "#F4F4F4"),
-            panel.spacing = unit(2, "lines"),
-            panel.border = element_blank(),
-            axis.line = element_blank(),
-            axis.ticks = element_blank(),
-            axis.title.y = element_text(
-                hjust = 1,
-                margin = margin(
-                    t = 0,
-                    r = 10,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.title.x = element_text(
-                hjust = 0,
-                margin = margin(
-                    t = 10,
-                    r = 0,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.text = element_text(),
-            legend.title.align = 0,
-            legend.key.height = unit(x = 5, units = "mm"),
-            legend.justification = c(1, 1)
-            #legend.position = c(1, 1)
-        )
-)
