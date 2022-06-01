@@ -1,13 +1,15 @@
 #' The following function fits a linear plateau model
-#' It is designed for soil test correlation data 
+#' It was designed with soil test correlation data in mind
 #' This function can provide results in a table format or as a plot
+#' Consider using the soiltestcorr package which is better maintained and less experimental
 #' Author: Austin Pearce
-#' Last updated: 2022-04-21
+#' Last updated: 2022-06-01
 #'
 #' @name lin_plateau
 #' @param data a data frame with XY data
-#' @param stv column for soil test values
-#' @param ry column for relative yield
+#' @param x column for soil test values
+#' @param y column for response (e.g. relative yield)
+#' @param force100 force model to plateau at 100% RY
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param extrapolate choose whether the fitted line extends to X = 0
@@ -30,27 +32,56 @@ blue <- "#13274F"
 black <- "#000000"
 
 # =============================================================================
+# supporting functions
 # Linear plateau model
-# y = if{x <= cx, b0 + b1x; b0 + b1 * cx}
-# b0 = intercept
-# b1 = slope
+# y = if{x <= cx, a + b1x; a + b * cx}
+# a = intercept
+# b = slope
 # cx = critical X value = join point = Critical Soil Test Value (CSTV)
 
-# =============================================================================
-# lin_plateau function
+lp <- function(x, a, b, cx){
+    if_else(x < cx,
+            a + b * x,
+            a + b * cx)
+}
 
-# fit_lp <- function(data){
-#     b1 <- (max(data$y) - min(data$y)) / (mean(data$x) - min(data$x))
-#     b0 <- 95 * b1
-#     cx <- mean(data$x)
-#     fit <- nls(y ~ lp(x, b0, b1, cx), data = data,
-#                start = c(b0 = b0, b1 = b1, cx = cx))
-#     return(fit)
-# }
+# Linear-plateau (plateau = 100)
+lp100 <- function(x, a, b){
+    cx <- (100 - a) / b
+    if_else(x < cx, 
+            a + b * x,
+            a + b * cx)
+}
+
+# or use nlraa::SSlinp for self-starting function
+
+get_lp_plateau <-function(lp_model){
+    p <- coef(lp_model)[[1]] + coef(lp_model)[[2]] * coef(lp_model)[[3]]
+    return(round(p, 1))
+}
+
+get_lp_cstv <- function(model, pct_of_max = 100, target = NULL){
+    a <- coef(model)[[1]]
+    b <- coef(model)[[2]]
+    cx <- coef(model)[[3]]
+    plateau <- a + b * cx
+    if(is.null(target)){
+        cstv <- round(((plateau * pct_of_max / 100) - a) / b, 1)
+    } else {
+        cstv <- if_else(target > plateau,
+                        Inf,
+                        round((target - a) / b, 1))
+    }
+    
+    return(cstv)
+}
+
+# =============================================================================
 
 lin_plateau <- function(data = NULL,
                         x,
                         y,
+                        force100 = FALSE,
                         resid = FALSE,
                         plot = FALSE,
                         extrapolate = FALSE) {
@@ -91,68 +122,66 @@ lin_plateau <- function(data = NULL,
     # starting values (sv)
     # even though the functions are selfStarting, providing starting values
     # increases the chance the SS functions converge on something reasonable
-    sv <- list(b0 = miny, b1 = 1, cx = meanx)
+    sv <- list(a = miny, b = 1, cx = meanx)
     
-    nls_model <- try(
-        nls(y ~ SSlinp(x, b0, b1, cx),
-            data = corr_data,
-            start = sv),
-        silent = TRUE
-        )
-    
-    if (inherits(nls_model, "try-error")) {
-        corr_model <- try(
-            minpack.lm::nlsLM(y ~ SSlinp(x, b0, b1, cx),
-                              data = corr_data,
-                              start = sv)
-            )
+    # even though there is a risk that nlsLM results in a false convergence, this risk is likely low
+    if (force100 == FALSE) {
+        corr_model <- try(minpack.lm::nlsLM(y ~ SSlinp(x, a, b, cx),
+                                        data = corr_data,
+                                        start = sv,
+                                        upper = c(a = maxy, b = Inf, cx = Inf),
+                                        lower = c(a = -Inf, b = 0, cx = minx)),
+                         silent = TRUE)
     } else {
-         corr_model <- nls_model
+        
+        corr_model <- try(minpack.lm::nlsLM(y ~ lp100(x, a, b),
+                                        data = corr_data,
+                                        start = c(a = miny, b = 1),
+                                        upper = c(a = 100, b = Inf),
+                                        lower = c(a = -Inf, b = 0)),
+                         silent = TRUE)
     }
 
     if (inherits(corr_model, "try-error")) {
-        stop("LP model could not be fit with nls or nlsLM.
+        stop("LP model could not be fit with nlsLM.
              Consider another model.")
     } else {
         corr_model <- corr_model
     }
     
     # How did the model do overall?
-    AIC      <- nlraa::IC_tab(corr_model)[3] %>% round()
-    AICc     <- nlraa::IC_tab(corr_model)[4] %>% round()
-    rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
+    AICc     <- nlraa::IC_tab(corr_model)[4] %>% round(1)
     rmse     <- round(modelr::rmse(corr_model, corr_data), 2)
+    rsquared <- round(modelr::rsquare(corr_model, corr_data), 2)
     
     #booted <- nlraa::boot_nls(corr_model, data = corr_data)
     # confint(booted, type = "perc", level = 0.95)
     
     # get model coefficients
-    b0 <- coef(corr_model)[[1]]
-    b1 <- coef(corr_model)[[2]]
-    cx <- coef(corr_model)[[3]]
+    a <- coef(corr_model)[[1]]
+    b <- coef(corr_model)[[2]]
     
-    plateau <- b0 + b1 * cx
-    cstv <- round(cx, 0)
+    if (force100 == FALSE){
+        cx <- coef(corr_model)[[3]]
+    } else {
+        cx <- (100 - a) / b
+    }
     
-    # CSTV at defined % of max/plateau (use percent_of_max argument)
-    ##### currently ignoring this #####
-    # 
-    # cstv_adj <-
-    #     round(((plateau * percent_of_max / 100) - b0) / b1, 0)
-    # 
-    # cstv_90ry <- if_else(
-    #     condition = plateau >= 90,
-    #     true = round((90 - b0) / b1, 0),
-    #     false = NULL
-    # )
+    if (force100 == FALSE){
+        plateau <- a + b * cx
+    } else {
+        plateau <- 100
+    }
+    
+    cstv <- round(cx, 1)
     
     # makes an exact line with clean bend rather than relying on predictions
     lp_line <- dplyr::tibble(
         x = c(if_else(extrapolate == TRUE, 0, minx), cx, maxx),
-        y = c(if_else(extrapolate == TRUE, b0, b0 + b1 * minx), plateau, plateau))
+        y = c(if_else(extrapolate == TRUE, a, a + b * minx), plateau, plateau))
     
-    equation <- paste0(round(b0, 1), " + ",
-                       round(b1, 2), "x")
+    equation <- paste0(round(a, 1), " + ",
+                       round(b, 2), "x")
     
     # Table output =================================================
     if (plot == FALSE) {
@@ -161,21 +190,14 @@ lin_plateau <- function(data = NULL,
                 plot(nlstools::nlsResiduals(corr_model), which = 0)
         }
         dplyr::tibble(
-            intercept = round(b0, 2),
-            slope = round(b1, 2),
+            intercept = round(a, 2),
+            slope = round(b, 2),
             equation,
             cstv,
             plateau = round(plateau, 1),
-            AIC,
             AICc,
             rmse,
             rsquared
-            # cstv_adj,
-            # percent_of_max,
-            # cstv_90ry = if_else(cstv_90ry > 0,
-            #                     cstv_90ry,
-            #                     NULL),
-            # at 90% RY
         )
     } else {
         # Residual plots and normality
@@ -235,7 +257,7 @@ lin_plateau <- function(data = NULL,
             annotate("text",
                      alpha = 0.5,
                      label = paste0("y = ", equation,
-                                    "\nAIC, AICc = ", AIC, ", ",AICc,
+                                    "\nAICc = ",AICc,
                                     "\nRMSE = ", rmse,
                                     "\nR-squared = ", rsquared),
                      x = maxx,
@@ -253,74 +275,5 @@ lin_plateau <- function(data = NULL,
     
 }
 
-
-# =============================================================================
-# preferred theme for ggplot
-
-theme_set(
-    theme_minimal(base_size = 14) +
-        theme(
-            plot.background = NULL,
-            plot.margin = margin(
-                t = 2,
-                r = 10,
-                b = 2,
-                l = 2,
-                unit = "pt"
-            ),
-            panel.grid = element_line(color = "#F4F4F4"),
-            panel.spacing = unit(2, "lines"),
-            panel.border = element_blank(),
-            axis.line = element_blank(),
-            axis.ticks = element_blank(),
-            axis.title.y = element_text(
-                hjust = 1,
-                margin = margin(
-                    t = 0,
-                    r = 10,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.title.x = element_text(
-                hjust = 0,
-                margin = margin(
-                    t = 10,
-                    r = 0,
-                    b = 0,
-                    l = 0,
-                    unit = "pt"
-                )
-            ),
-            axis.text = element_text(),
-            legend.title.align = 0,
-            legend.key.height = unit(x = 5, units = "mm"),
-            legend.justification = c(1, 1)
-            #legend.position = c(1, 1)
-        )
-)
-
-# =============================================================================
-# other function for fitting nls model only
-# 
-# fit_SSlinp <- function(data) {
-#     # nlraa model
-#     fit <- nlsLM(
-#         formula = y ~ SSlinp(x, b0, b1, cx),
-#         data = data,
-#         control = nls.lm.control(maxiter = 500),
-#         upper = c(
-#             b0 = max(data$y),
-#             b1 = 10000,
-#             cx = max(data$x)
-#         ),
-#         lower = c(
-#             b0 = -10000,
-#             b1 = 0,
-#             cx = min(data$x)
-#         )
-#     )
-#     
-#     return(fit)
-# }
+lin_plateau(corr_data, x, y, plot = TRUE)
+lin_plateau(corr_data, x, y, plot = TRUE, force100 = TRUE)
