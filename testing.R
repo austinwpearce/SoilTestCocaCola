@@ -1,6 +1,7 @@
 # This testing file includes a soil test correlation dataset from `agridat`
 # for testing the lin_plateau, quad_plateau, mitscherlich, and alcc functions.
 
+library(ggplot2)
 library(devtools)
 library(stringr)
 library(dplyr)
@@ -35,6 +36,15 @@ corr_data <- tibble(
     stk = agridat::cate.potassium$potassium,
     ry = agridat::cate.potassium$yield, 
     dataset = "cotton")
+
+corr_data <- tibble(
+    x = agridat::cate.potassium$potassium,
+    y = agridat::cate.potassium$yield, 
+    dataset = "cotton")
+
+
+cate_nelson(corr_data, stk, ry)
+
 
 # Note that the X variable is an integer! This is handled within the function
 

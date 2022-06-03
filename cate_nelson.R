@@ -6,38 +6,89 @@ gold <- "#EAAA00"
 blue <- "#13274F"
 black <- "#000000"
 
+
+
 cate_nelson <-
     function(data,
+             x,
+             y,
              trend = "positive",
              verbose = FALSE,
-             plot = FALSE) {
+             plot = FALSE,
+             sufficiency = NULL) {
+        
+        if (missing(x)) {
+            stop("Please specify the explanatory variable name (e.g. soil test concentration) using the `x` argument")
+        }
+        
+        if (missing(y)) {
+            stop("Please specify the response variable name (e.g. relative yield) using the `y` argmuent")
+        }
+        
+        # Re-define x and y from STV and RY (tip to AC)
+        x <- rlang::eval_tidy(data = data, rlang::quo({{x}}) )
+        
+        y <- rlang::eval_tidy(data = data, rlang::quo({{y}}) )
+        
+        if (max(y) < 2) {
+            stop("The reponse variable appears to not be on a percentage scale.
+             If so, please multiply it by 100.")
+        }
+        
+        corr_data <- dplyr::tibble(x = as.numeric(x), 
+                                   y = as.numeric(y))
+        
+        if (nrow(corr_data) < 4) {
+            stop("Too few distinct input values to fit LP. Try at least 4.")
+        }
+        
         par(mfrow = c(2, 3))
-        cn <- cateNelson(
-            x          = data$x,
-            y          = data$y,
+        
+        minx <- min(corr_data$x)
+        maxx <- max(corr_data$x)
+        rangex <- maxx - minx
+        maxy <- max(corr_data$y)
+
+        if (is.null(sufficiency)){
+        cn_free <- rcompanion::cateNelson(
+            x          = corr_data$x,
+            y          = corr_data$y,
             plotit     = FALSE,
-            hollow     = TRUE,
             verbose    = verbose,
             progress = FALSE,
-            xlab       = "stv",
-            ylab       = "ry",
+            xlab       = "STV",
+            ylab       = "RY",
             trend      = trend,
             clx        = 1,
             cly        = 1,
             xthreshold = 0.10,
             ythreshold = 0.15
         )
-        minx <- min(data$x)
-        maxx <- max(data$x)
-        rangex <- maxx - minx
-        maxy <- max(data$y)
-        cstv <- cn$CLx
-        cry <- cn$CLy
         
-        if (plot == FALSE) {
+        cstv <- cn_free$CLx
+        cry <- cn_free$CLy
+        }
+        
+        if(!is.null(sufficiency)) {
+            cn_fixed <- rcompanion::cateNelsonFixedY(
+                x = corr_data$x,
+                y = corr_data$y,
+                cly = sufficiency,
+                trend = trend,
+                plotit = FALSE,
+                xlab = "STV",
+                ylab = "RY")
+        
+            cstv <- cn_fixed$Critx[[1]]
+            cry <- cn_fixed$Crity[[1]]
+            
+        }
+        
             # from Steve Culman
-            dat <- data.frame(x = data$x,
-                              y = data$y)
+            dat <- data.frame(x = corr_data$x,
+                              y = corr_data$y)
+            
+            dat <- corr_data
             
             dat <- dat[order(dat$x), ] # Sort the data by x
             x <- dat$x
@@ -75,12 +126,17 @@ cate_nelson <-
                 arrange(desc(r2)) %>%
                 slice_max(r2)
             
-            return(tibble(cstv = round(cstv, 1),
-                          ry = round(cry, 1)) %>%
-                bind_cols(cn_rsq))
-        } else {
+            cn_table <- tibble(cstv = round(cstv, 1),
+                               cry = round(cry, 1)) %>%
+                bind_cols(cn_rsq)
             
-            data %>%
+            if (plot == FALSE){
+            
+            return(cn_table)
+                
+            } else {
+            
+            cn_plot <- corr_data %>%
                 ggplot(aes(x, y)) +
                 geom_vline(xintercept = cstv,
                            alpha = 1,
@@ -103,7 +159,7 @@ cate_nelson <-
                 annotate(
                     "text",
                     label = paste0("RY = ", round(cry, 1), "%"),
-                    x = max(data$x),
+                    x = maxx,
                     y = cry,
                     angle = 0,
                     hjust = 1,
@@ -126,8 +182,10 @@ cate_nelson <-
                 labs(
                     x = "Soil test value (mg/kg)",
                     y = "Relative yield (%)",
-                    caption = paste("Each point is a site. n =", nrow(data))
+                    caption = paste("Each point is a site. n =", nrow(corr_data))
                 ) +
                 theme(legend.position =  "none")
+            
+            return(cn_plot)
         }
     }
