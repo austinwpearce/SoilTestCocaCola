@@ -274,6 +274,3 @@ lin_plateau <- function(data = NULL,
     }
     
 }
-
-lin_plateau(corr_data, x, y, plot = TRUE)
-lin_plateau(corr_data, x, y, plot = TRUE, force100 = TRUE)
