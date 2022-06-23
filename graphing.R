@@ -1,5 +1,5 @@
 # My own ggplot2 theme
-sanserif <- c("Roboto Condensed")
+#sanserif <- c("Roboto Condensed")
 
 theme_gc <- 
     theme_minimal(#base_family = sanserif,
