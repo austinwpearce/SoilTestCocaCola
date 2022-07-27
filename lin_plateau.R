@@ -82,6 +82,7 @@ lin_plateau <- function(data = NULL,
                         x,
                         y,
                         force100 = FALSE,
+                        confint = FALSE,
                         resid = FALSE,
                         plot = FALSE,
                         extrapolate = FALSE) {
@@ -183,6 +184,31 @@ lin_plateau <- function(data = NULL,
     equation <- paste0(round(a, 1), " + ",
                        round(b, 2), "x")
     
+    # 95% Bootstrap confidence intervals
+    if (confint == TRUE) {
+        fit_LP <- function(split) {
+            fit <- nlsLM(formula = y ~ lp(x, a, b, cx),
+                         data = analysis(split),
+                         start = as.list(coef(corr_model)))
+            
+            return(fit)
+        }
+        
+        set.seed(911)
+        
+        boot_ci <- corr_data %>%
+            bootstraps(times = 1000) %>% 
+            mutate(models = map(splits, possibly(fit_LP, otherwise = NULL)),
+                   coefs = map(models, tidy)) %>% 
+            int_pctl(coefs)
+        
+        lcl <- if_else(confint == TRUE, boot_ci$.lower[3], NULL)
+        ucl <- if_else(confint == TRUE, boot_ci$.upper[3], NULL)
+    } else {
+        lcl <- NULL
+        ucl <- NULL
+    }
+    
     # Table output =================================================
     if (plot == FALSE) {
         {
@@ -193,7 +219,9 @@ lin_plateau <- function(data = NULL,
             intercept = round(a, 2),
             slope = round(b, 2),
             equation,
-            cstv,
+            cstv, # Critical Soil Test Value
+            lcl, #Lower Confidence Limit
+            ucl, # Upper Confidence Limit
             plateau = round(plateau, 1),
             AICc,
             rmse,
