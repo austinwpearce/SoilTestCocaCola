@@ -10,6 +10,8 @@
 #' @param x column for soil test values
 #' @param y column for response (e.g. relative yield)
 #' @param force100 force model to plateau at 100% RY
+#' @param confint estimate a 95% confidence interval by bootstrap
+#' @param boot_R number of bootstrap replicates
 #' @param resid choose whether to create residuals plots
 #' @param plot choose whether to create correlation plot rather than table
 #' @param extrapolate choose whether the fitted line extends to X = 0
@@ -52,7 +54,6 @@ lp100 <- function(x, a, b){
             a + b * x,
             a + b * cx)
 }
-
 # or use nlraa::SSlinp for self-starting function
 
 get_lp_plateau <-function(lp_model){
@@ -83,6 +84,7 @@ lin_plateau <- function(data = NULL,
                         y,
                         force100 = FALSE,
                         confint = FALSE,
+                        boot_R = 200,
                         resid = FALSE,
                         plot = FALSE,
                         extrapolate = FALSE) {
@@ -185,7 +187,7 @@ lin_plateau <- function(data = NULL,
                        round(b, 2), "x")
     
     # 95% Bootstrap confidence intervals
-    if (confint == TRUE) {
+    if (confint == TRUE & force100 == FALSE) {
         fit_LP <- function(split) {
             fit <- nlsLM(formula = y ~ lp(x, a, b, cx),
                          data = analysis(split),
@@ -193,17 +195,42 @@ lin_plateau <- function(data = NULL,
             
             return(fit)
         }
-        
         set.seed(911)
         
         boot_ci <- corr_data %>%
-            bootstraps(times = 1000) %>% 
+            bootstraps(times = boot_R) %>% 
             mutate(models = map(splits, possibly(fit_LP, otherwise = NULL)),
                    coefs = map(models, tidy)) %>% 
             int_pctl(coefs)
         
-        lcl <- if_else(confint == TRUE, boot_ci$.lower[3], NULL)
-        ucl <- if_else(confint == TRUE, boot_ci$.upper[3], NULL)
+        lcl <- boot_ci$.lower[3]
+        ucl <- boot_ci$.upper[3]
+    } else if (confint == TRUE & force100 == TRUE) {
+        fit_LP100 <- function(split) {
+            fit <- nlsLM(formula = y ~ lp100(x, a, b),
+                         data = analysis(split),
+                         start = as.list(coef(corr_model)))
+            
+            return(fit)
+        }
+        set.seed(911)
+        
+        boot_ci <- corr_data %>%
+            bootstraps(times = boot_R) %>% 
+            mutate(models = map(splits, possibly(fit_LP100, otherwise = NULL)),
+                   coefs = map(models, tidy)) %>% 
+            unnest(coefs) %>% 
+            # have to do more data wrangline because the lp100()
+            # doesn't have a critical value parameter
+            select(-(std.error:p.value)) %>% 
+            pivot_wider(names_from = term,
+                        values_from = estimate) %>% 
+            mutate(cx = (100 - a) / b) %>% 
+            summarise(lcl = quantile(cx, 0.025, na.rm = TRUE),
+                      ucl = quantile(cx, 0.975, na.rm = TRUE))
+        
+        lcl <- boot_ci$lcl
+        ucl <- boot_ci$ucl
     } else {
         lcl <- NULL
         ucl <- NULL
@@ -225,7 +252,8 @@ lin_plateau <- function(data = NULL,
             plateau = round(plateau, 1),
             AICc,
             rmse,
-            rsquared
+            rsquared,
+            boot_R
         )
     } else {
         # Residual plots and normality
@@ -244,8 +272,10 @@ lin_plateau <- function(data = NULL,
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
-            geom_hline(yintercept = plateau,
-                       alpha = 0.2) +
+            geom_vline(xintercept = c(lcl, ucl),
+                       alpha = 0.8,
+                       color = blue,
+                       linetype = 3) +
             # fitted line
             geom_line(data = lp_line,
                       aes(x = x, y = y),
