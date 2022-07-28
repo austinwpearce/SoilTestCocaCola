@@ -84,7 +84,7 @@ lin_plateau <- function(data = NULL,
                         y,
                         force100 = FALSE,
                         confint = FALSE,
-                        boot_R = 200,
+                        boot_R = 500,
                         resid = FALSE,
                         plot = FALSE,
                         extrapolate = FALSE) {
