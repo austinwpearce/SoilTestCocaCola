@@ -3,7 +3,7 @@
 #' This function can provide results in a table format or as a plot
 #' Consider using the soiltestcorr package which is better maintained and less experimental
 #' Author: Austin Pearce
-#' Last updated: 2022-06-01
+#' Last updated: 2022-08-02
 #'
 #' @name lin_plateau
 #' @param data a data frame with XY data
@@ -20,10 +20,13 @@
 
 # packages/dependencies needed
 library(dplyr) # a suite of packages for wrangling and plotting
+library(tidyr) # tidying functions
+library(purrr) # map functions
 library(rlang) # evaluate column names for STV and RY (tip to AC)
 library(nlraa) # for self-starting functions and predicted intervals
 library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
+library(rsample)
 library(modelr) # for the r-squared and rmse
 library(ggplot2) # plots
 
@@ -56,12 +59,12 @@ lp100 <- function(x, a, b){
 }
 # or use nlraa::SSlinp for self-starting function
 
-get_lp_plateau <-function(lp_model){
+get_plateau_lp <-function(lp_model){
     p <- coef(lp_model)[[1]] + coef(lp_model)[[2]] * coef(lp_model)[[3]]
     return(round(p, 1))
 }
 
-get_lp_cstv <- function(model, pct_of_max = 100, target = NULL){
+get_cstv_lp <- function(model, pct_of_max = 100, target = NULL){
     a <- coef(model)[[1]]
     b <- coef(model)[[2]]
     cx <- coef(model)[[3]]
@@ -253,7 +256,7 @@ lin_plateau <- function(data = NULL,
             AICc,
             rmse,
             rsquared,
-            boot_R
+            boot_R = if_else(confint == TRUE, boot_R, 0)
         )
     } else {
         # Residual plots and normality
@@ -272,10 +275,13 @@ lin_plateau <- function(data = NULL,
             geom_vline(xintercept = cx,
                        alpha = 1,
                        color = blue) +
+            {
+                if(confint == TRUE)
             geom_vline(xintercept = c(lcl, ucl),
                        alpha = 0.8,
                        color = blue,
-                       linetype = 3) +
+                       linetype = 3)
+            } +
             # fitted line
             geom_line(data = lp_line,
                       aes(x = x, y = y),
@@ -305,22 +311,27 @@ lin_plateau <- function(data = NULL,
                      hjust = 0,
                      vjust = 1.5,
                      alpha = 0.5) +
+            {
+                if(confint == TRUE)
             annotate("text",
-                     label = paste("LCL =", round(lcl, 1), "ppm"),
+                     label = paste("LCL =", round(lcl,1), "ppm"),
                      x = lcl,
                      y = 0,
                      angle = 90,
                      hjust = 0,
                      vjust = -0.5,
-                     alpha = 0.5) +
+                     alpha = 0.5)
+            } + {
+                if(confint == TRUE)
             annotate("text",
-                     label = paste("UCL =", round(ucl, 1), "ppm"),
+                     label = paste("UCL =", round(ucl,1), "ppm"),
                      x = ucl,
                      y = 0,
                      angle = 90,
                      hjust = 0,
                      vjust = 1.5,
-                     alpha = 0.5) +
+                     alpha = 0.5)
+            } +
             annotate("text",
                      alpha = 0.5,
                      label = paste0("Plateau = ", round(plateau, 1), "%"),
@@ -348,3 +359,4 @@ lin_plateau <- function(data = NULL,
     }
     
 }
+
