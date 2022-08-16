@@ -11,7 +11,7 @@ library(nlraa) # for self-starting functions and predicted intervals
 library(minpack.lm) # for nlsLM, a robust backup to nls
 library(nlstools) # for residuals plots
 library(modelr) # for the r-squared and rmse
-
+library(soiltestcorr)
 
 # Load correlation functions
 base_url <- "https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/"
