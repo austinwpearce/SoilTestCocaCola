@@ -5,6 +5,9 @@ library(agridat)
 df <- data.frame(stv = agridat::cate.potassium$potassium,
                  ry = agridat::cate.potassium$yield)
 
+df <- data.frame(stv = c(1, 1, 11, 11, 21, 21, 31, 31),
+                 ry = c(95, 100, 95, 100, 85, 90, 85, 90))
+
 qplot(data = df, stv, ry, geom = "point")
 
 # limit to 100 for ALCC
@@ -68,3 +71,4 @@ ggplot() +
     geom_vline(xintercept = c(lower_cl, upper_cl), lty = 3) +
     geom_vline(xintercept = cstv, color = "#CC0000") +
     geom_point(aes(cstv, sufficiency), color = "#CC0000", size = 3)
+
