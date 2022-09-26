@@ -73,6 +73,9 @@ alcc_core <- function(data,
     # Step 5 Fit linear model to transformed, centered data
     ols_center <- lm(yt ~ xt_centered, data = steps_1_4)
     
+    #rsq <- round(modelr::rsquare(model = ols_center,
+     #                            data = steps_1_4), 2)
+    
     steps_5_9 <- steps_1_4 %>%
         mutate(
             intercept = coef(ols_center)[[1]],
@@ -85,7 +88,7 @@ alcc_core <- function(data,
             cstv = exp(intercept),
             # Step 8 Estimate the confidence interval
             pred_yt  = intercept + slope * xt_centered,
-            #residuals_stv = yt - pred_yt,
+            residuals_stv = yt - pred_yt,
             mse      = sum((residuals_stv) ^ 2) / (n - 2),
             ssx      = var(xt_centered) * (n - 1),
             confidence = confidence,
@@ -104,7 +107,8 @@ alcc_core <- function(data,
         # 'dataset' might be problematic, not defined in scope
         select(model, sufficiency, cstv,
                lower_cl, upper_cl, confidence,
-               fitted_stv, fitted_ry, pvalue, pearson, everything())
+               fitted_stv, fitted_ry, pvalue, pearson, #rsq,
+               everything())
 }
 
 alcc_sma <- function(data,
@@ -185,9 +189,10 @@ alcc_sma <- function(data,
                     confidence,
                     pvalue,
                     pearson,
+                    #rsq,
                     remove2x,
                     cstv_100,
-                    cstv90_2x) %>% 
+                    cstv90_2x, intercept, slope) %>% 
                 distinct(across(everything()))
         )
     } else {
