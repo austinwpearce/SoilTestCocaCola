@@ -3,8 +3,8 @@
 #' Last update: 2022-03-10
 #' @references Correndo et al. 2017
 #' @references Dyson and Conyers 2013
-#' @name alcc
-#' @description perform ALCC/ALCC-SMA for soil test correlation
+#' @name alcc_sma
+#' @description perform ALCC with SMA for soil test correlation
 #' @description creates new variables on existing dataset
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
@@ -45,6 +45,7 @@ alcc_core <- function(data,
     y <- enquo(ry)
     
     steps_1_4 <- data %>%
+        as_tibble() %>% 
         mutate(
             stv = !!x,
             # RY values greater than 100 are capped at 100
@@ -84,7 +85,7 @@ alcc_core <- function(data,
             cstv = exp(intercept),
             # Step 8 Estimate the confidence interval
             pred_yt  = intercept + slope * xt_centered,
-            residuals_stv = yt - pred_yt,
+            #residuals_stv = yt - pred_yt,
             mse      = sum((residuals_stv) ^ 2) / (n - 2),
             ssx      = var(xt_centered) * (n - 1),
             confidence = confidence,
@@ -95,8 +96,10 @@ alcc_core <- function(data,
                                                df = n - 2)),
             # Step 9 Back-transform
             fitted_stv = exp(pred_yt),
+            residuals_stv = stv - fitted_stv,
             fitted_ry = 100 * (sin(
-                adjust_by + ((pred_yt - intercept) / slope))) ^ 2
+                adjust_by + ((pred_yt - intercept) / slope))) ^ 2,
+            residuals_ry = ry_cap - fitted_ry
         ) %>%
         # 'dataset' might be problematic, not defined in scope
         select(model, sufficiency, cstv,
@@ -104,13 +107,14 @@ alcc_core <- function(data,
                fitted_stv, fitted_ry, pvalue, pearson, everything())
 }
 
-alcc <- function(data,
-                 soil_test,
-                 ry,
-                 sufficiency = 90,
-                 confidence = 95,
-                 remove2x = FALSE,
-                 summary = FALSE){
+alcc_sma <- function(data,
+                     soil_test,
+                     ry,
+                     sufficiency = 90,
+                     confidence = 95,
+                     remove2x = FALSE,
+                     summary = FALSE) {
+    
     
     if (missing(soil_test)) {
         stop("Specify the soil test variable (e.g., soil_test = STK)")

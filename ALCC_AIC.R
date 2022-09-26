@@ -19,7 +19,7 @@ df_2 <- data.frame(stv = c(1, 1, 11, 11, 21, 21, 31, 31),
 qplot(data = df, stv, ry, geom = "point")
 
 # limit to 100 for ALCC
-df$ry <- ifelse(df$ry > 100, 100, df$ry)
+df$ry <- ifelse(df$ry > 100, 100, round(df$ry, 1))
 
 qplot(data = df, stv, ry, geom = "point")
 
@@ -83,15 +83,39 @@ upper_cl <- exp(intercept + se * qt(1 - (1 - confidence / 100) / 2,
                                   df = n - 2))
 # Step 9 Back-transform
 # New RY values to create smoother curve to 0
-tmp <- seq(0, 100, by = 0.2)
+tmp <- seq(0, 100, by = 0.05)
+tmp <- df$stv
 tmp2 <- asin(sqrt(tmp/100)) - asin(sqrt(sufficiency/100))
 new_pred_y <- intercept + slope * tmp2
 fitted_stv <- exp(new_pred_y)
 fitted_ry <- 100 * (sin(adjust_by + ((new_pred_y - intercept) / slope))) ^ 2
+fitted_stv <- round(fitted_stv, 1)
+
+ry_res <- 
+    tibble(stv = fitted_stv,
+           fitted_ry) %>% 
+    left_join(df) %>% 
+    drop_na() %>% 
+    distinct(across(everything())) %>% 
+    mutate(resid_ry = ry - fitted_ry)
+
+ggplot() +
+    geom_point(aes(df$stv, df$ry)) +
+    geom_line(data = ry_res,
+              aes(stv, fitted_ry)) +
+    geom_point(data = ry_res,
+               aes(stv, fitted_ry),
+               color = "red") +
+    geom_hline(yintercept = sufficiency, lty = 2) +
+    geom_vline(xintercept = c(lower_cl, upper_cl), lty = 3) +
+    geom_vline(xintercept = cstv, color = "#CC0000") +
+    geom_point(aes(cstv, sufficiency), color = "#CC0000", size = 3) +
+    scale_x_continuous(breaks = seq(0, 300, 4))
 
 ggplot() +
     geom_point(aes(df$stv, df$ry)) +
     geom_line(aes(fitted_stv, fitted_ry)) +
+    geom_point(aes(fitted_stv, fitted_ry), color = "red") +
     geom_hline(yintercept = sufficiency, lty = 2) +
     geom_vline(xintercept = c(lower_cl, upper_cl), lty = 3) +
     geom_vline(xintercept = cstv, color = "#CC0000") +

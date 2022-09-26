@@ -5,13 +5,13 @@
 #' @references Dyson and Conyers 2013
 #' @description creates new variables on existing dataset
 #' @name alcc_plot
-#' @description perform ALCC and make plot without data table output
+#' @description perform ALCC-SMA and make plot without data table output
 #' @param data a data frame with XY data
 #' @param soil_test column for soil test values
 #' @param ry column for relative yield values 0-100%
 #' @param sufficiency choose at which RY value to get CSTV
 #' @param confidence choose at which confidence level to estimate CI of CSTV
-#' @param remove2x if TRUE, redo alcc() with data greater than twice the CSTV removed
+#' @param remove2x if TRUE, redo alcc_sma() with data greater than twice the CSTV removed
 # =============================================================================
 # Could potentially add an argument that checks if data is percentage or ratio
 
@@ -20,7 +20,7 @@
 library(tidyverse) # a suite of packages for wrangling and plotting
 
 # import alcc() function
-source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc.R")
+source_url("https://raw.githubusercontent.com/austinwpearce/SoilTestCocaCola/main/alcc_sma.R")
 
 
 # =============================================================================
@@ -60,7 +60,7 @@ theme_set(
 # =============================================================================
 
 # Function alcc_plot() creates a scatter plot of soil test correlation data
-# arguments are passed to alcc()
+# arguments are passed to alcc_sma()
 alcc_plot <- function(data,
                       soil_test,
                       ry,
@@ -85,13 +85,13 @@ alcc_plot <- function(data,
                   # RY values greater than 100 are capped at 100
                   ry_cap = if_else(!!y > 100, 100, !!y))
     
-    # pass to alcc function
-    output <- alcc(data,
-                   soil_test = !!x,
-                   ry = !!y,
-                   sufficiency = sufficiency,
-                   confidence = confidence,
-                   remove2x = remove2x)
+    # pass to alcc_sma function
+    output <- alcc_sma(data,
+                       soil_test = !!x,
+                       ry = !!y,
+                       sufficiency = sufficiency,
+                       confidence = confidence,
+                       remove2x = remove2x)
     
     # for plot annotations
     
@@ -129,6 +129,9 @@ alcc_plot <- function(data,
         geom_vline(xintercept = upper_cl,
                    alpha = 0.5,
                    linetype = 3) +
+        geom_point(aes(x = fitted_stv,
+                      y = fitted_ry),
+                  color = red) +
         geom_line(aes(x = fitted_stv,
                       y = fitted_ry),
                   color = red) +
