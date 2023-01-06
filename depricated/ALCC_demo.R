@@ -55,7 +55,7 @@ lower_cl <-
     exp(intercept - se * qt(1 - (1 - confidence / 100) / 2,
                             df = n - 2))
 upper_cl <- exp(intercept + se * qt(1 - (1 - confidence / 100) / 2,
-                                  df = n - 2))
+                                    df = n - 2))
 # Step 9 Back-transform
 # New RY values to create smoother curve to 0
 tmp <- seq(0, 100, by = 0.2)
