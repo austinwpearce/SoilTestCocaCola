@@ -90,7 +90,8 @@ lin_plateau <- function(data = NULL,
                         boot_R = 500,
                         resid = FALSE,
                         plot = FALSE,
-                        extrapolate = FALSE) {
+                        extrapolate = FALSE,
+                        ...) {
     
     if (missing(x)) {
         stop("Please specify the explanatory variable name (e.g. soil test concentration) using the `x` argument")
@@ -286,7 +287,7 @@ lin_plateau <- function(data = NULL,
             geom_line(data = lp_line,
                       aes(x = x, y = y),
                       color = red) +
-            geom_point(size = 2, alpha = 0.5) +
+            geom_point(aes(...), size = 2, alpha = 0.5) +
             geom_rug(alpha = 0.2, length = unit(2, "pt")) +
             scale_y_continuous(
                 # start from 0 helps show the overall response
