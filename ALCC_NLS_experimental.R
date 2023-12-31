@@ -127,3 +127,35 @@ val <- -N * (log(2 * pi) + 1 - log(N) - sum(log(w + zw))/N + log(sum(res^2)))/2
 val # value is negative
 
 # AIC
+
+
+alccfun <- function(y, a, b){
+    c <- asin(sqrt(0.95))
+    exp(b * asin(sqrt(y/100)) + (a - b * c))
+}
+
+tmp <- m1k_data %>% filter(x < 153)
+
+mod <- nls(x ~ alccfun(y, a, b), data = tmp,
+           start = c(a = 4, b = 2))
+
+
+ggplot()+
+    geom_point(aes(m1k_data$x, y = m1k_data$y, color = m1k_data$sig_response)) +
+    geom_line(aes(x = predict(mod), y = tmp$y)) +
+    geom_vline(xintercept = 67.7) + geom_hline(yintercept = 95)
+
+
+alccfun <- function(x, a, b){
+    c <- asin(sqrt(0.95))
+    100 * (sin((log(x)/b) - ((a - b * c) / b)))^2
+}
+
+mod <- nls(y ~ alccfun(x, a, b), data = tmp,
+           start = c(a = 4, b = 2))
+# not quite, but close
+
+ggplot()+
+    geom_point(aes(m1k_data$x, y = m1k_data$y, color = m1k_data$sig_response)) +
+    geom_line(aes(x = predict(mod), y = tmp$y)) +
+    geom_vline(xintercept = 67.7) + geom_hline(yintercept = 95)
